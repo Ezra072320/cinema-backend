@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="edu.czu.cinema.domain.hall.mapper.SeatTemplateMapper">
+
+    <resultMap id="BaseResultMap" type="edu.czu.cinema.domain.hall.entity.SeatTemplate">
+        <id     property="id"          column="id"/>
+        <result property="name"        column="name"/>
+        <result property="description" column="description"/>
+        <result property="rowsCount"   column="rows_count"/>
+        <result property="colsCount"   column="cols_count"/>
+        <result property="createdAt"   column="created_at"/>
+    </resultMap>
+
+    <!--
+        列表查询: 管理员页面用. 加 unit_count 便于列表直接显示单元数,
+        避免 N+1 拉 units.
+    -->
+    <select id="selectListWithCount" resultType="edu.czu.cinema.domain.hall.entity.SeatTemplate">
+        SELECT t.id, t.name, t.description, t.rows_count, t.cols_count, t.created_at,
+               (SELECT COUNT(*) FROM seat_template_unit u WHERE u.template_id = t.id) AS unitCount
+        FROM seat_template t
+        ORDER BY t.id DESC
+    </select>
+
+</mapper>

@@ -1,0 +1,8 @@
+/target/
+/logs/
+/config/tmdb-local.yml
+/data/
+app.log
+*.log
+.admin_token
+.user_token

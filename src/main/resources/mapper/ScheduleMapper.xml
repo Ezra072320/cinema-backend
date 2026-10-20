@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="edu.czu.cinema.domain.schedule.mapper.ScheduleMapper">
+
+    <!--
+        2026-10-20: 单表 CRUD / 条件更新 / 区间重叠查询(listConflict 等)全部改写为
+        MyBatis-Plus LambdaQueryWrapper(见 ScheduleMapper 接口的默认方法), 本 XML 只留
+        无法用 MP 表达的聚合 SQL. 原 resultMap 漏映射 batch_id 的问题随改写消失.
+    -->
+
+    <!-- 单影院本店热映：存在已启用且尚未结束的排片；自动随时间失效。 -->
+    <select id="movieShowSummaries" resultType="edu.czu.cinema.domain.movie.vo.MovieShowSummary">
+        SELECT movie_id, COUNT(*) AS schedule_count,
+               MIN(CASE WHEN start_time &gt; NOW() THEN start_time ELSE NULL END) AS next_show_time
+        FROM `schedule`
+        WHERE status = 1 AND end_time &gt; NOW() AND movie_id IN
+        <foreach collection="movieIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+        GROUP BY movie_id
+    </select>
+</mapper>

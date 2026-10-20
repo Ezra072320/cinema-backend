@@ -1,0 +1,71 @@
+# =============================================================
+# dev profile 专用配置.
+#
+# 开箱即用：本文件提供本地开发默认值，未设置环境变量时直接使用；
+# 设置了同名环境变量则自动覆盖（MYSQL_PASSWORD / JWT_SECRET / REDIS_* / CAPTCHA_REQUIRED ...）。
+# 这些默认值仅对 dev profile 生效；prod profile 不提供任何默认凭据，缺失即启动失败。
+#
+# 外部服务（OSS / DashScope / TMDB）不预设可用凭据：未配置时基础订票不受影响，
+# 仅上传/海报转存/AI 客服/资料补缺不可用。
+# =============================================================
+
+spring:
+  datasource:
+    # 本地开发默认口令；生产请通过 MYSQL_PASSWORD 注入（prod profile 无默认值）
+    password: ${MYSQL_PASSWORD:wrkaxjy.}
+  ai:
+    openai:
+      # DEV ONLY — 恢复原先的本地默认模型密钥，方便开箱使用 AI 客服；
+      # 设置 DASHSCOPE_API_KEY 即覆盖。prod profile 不提供默认值。
+      # 注意：该密钥曾在仓库中出现过，生产/公网部署应轮换并使用新密钥。
+      api-key: ${DASHSCOPE_API_KEY:sk-bd14693db3ad4369bbfeb7179347e1cb}
+      base-url: https://dashscope.aliyuncs.com/compatible-mode
+      chat:
+        options:
+          model: qwen-max
+      embedding:
+        options:
+          model: text-embedding-v3
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6379
+      password: ${REDIS_PASSWORD:}
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+          max-wait: 100
+
+jwt:
+  # DEV ONLY — 公开的本地开发签名密钥，方便开箱启动；
+  # prod profile 不提供默认值，必须通过 JWT_SECRET 注入真随机串。
+  secret: ${JWT_SECRET:dev-only-czm-cinema-renovation-not-for-production-2026-key}
+  expire-hours: 12
+
+aliyun:
+  oss:
+    access-key-id: ${ALIYUN_OSS_AK:}
+    access-key-secret: ${ALIYUN_OSS_SK:}
+    endpoint: https://oss-cn-chengdu.aliyuncs.com
+    bucket-name: ${ALIYUN_OSS_BUCKET:cinema-bucket}
+
+wechat:
+  appid: ${WX_APPID:dev-only-wxappid-replace-me}
+  secret: ${WX_SECRET:dev-only-wxsecret-replace-me}
+
+cinema:
+  docs:
+    enabled: true
+  captcha:
+    # 保留旧本地体验：dev 默认不强制验证码；需要联调验证码时设 CAPTCHA_REQUIRED=true。
+    # prod profile 默认强制（application.yml 中为 true）。
+    required: ${CAPTCHA_REQUIRED:false}
+
+logging:
+  level:
+    edu.czu.cinema: debug
+    org.springframework.ai.chat.client.advisor: info
+    # 需要排查 SQL 时打开（走 SLF4J，不会明文刷 stdout）
+    # edu.czu.cinema.**.mapper: debug

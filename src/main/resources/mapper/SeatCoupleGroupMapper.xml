@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  仅保留批量插入：MP BaseMapper 无批量 insert，逐条 insert 会为整张座位图产生 N 次往返。
+  单表查询/删除已全部改为接口 default 方法（LambdaQueryWrapper）。
+-->
+<mapper namespace="edu.czu.cinema.domain.hall.mapper.SeatCoupleGroupMapper">
+
+    <insert id="batchInsert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO seat_couple_group (hall_id, version_id, seat_id_1, seat_id_2, label)
+        VALUES
+        <foreach collection="list" item="g" separator=",">
+            (#{g.hallId}, #{g.versionId}, #{g.seatId1}, #{g.seatId2}, #{g.label})
+        </foreach>
+    </insert>
+
+</mapper>
