@@ -1,0 +1,8 @@
+CREATE TABLE service_operation (
+ operation_id VARCHAR(64) NOT NULL PRIMARY KEY,
+ user_id BIGINT NOT NULL,
+ operation_type VARCHAR(64) NOT NULL,
+ request_hash VARCHAR(64) NOT NULL,
+ result_json MEDIUMTEXT,
+ created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

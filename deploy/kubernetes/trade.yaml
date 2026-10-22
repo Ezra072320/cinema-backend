@@ -1,0 +1,97 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cinema-trade
+  namespace: cinema
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: {maxUnavailable: 0, maxSurge: 1}
+  selector: {matchLabels: {app: cinema-trade}}
+  template:
+    metadata:
+      labels: {app: cinema-trade, app.kubernetes.io/part-of: cinema, cinema-tier: business}
+    spec:
+      terminationGracePeriodSeconds: 45
+      securityContext: {runAsNonRoot: true, runAsUser: 10001, runAsGroup: 10001}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector: {matchLabels: {app: cinema-trade}}
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector: {matchLabels: {app: cinema-trade}}
+      containers:
+        - name: application
+          image: registry.example.com/cinema/trade:0.1.0
+          ports: [{containerPort: 8080, name: http}]
+          envFrom:
+            - configMapRef: {name: cinema-runtime}
+            - secretRef: {name: cinema-shared-secrets}
+            - secretRef: {name: cinema-trade-secrets}
+          env:
+            - name: DB_USERNAME
+              value: cinema_trade
+            - name: DB_URL
+              value: "jdbc:mysql://mysql-router.platform.svc.cluster.local:6446/cinema_trade?serverTimezone=Asia/Shanghai&connectTimeout=2000&socketTimeout=10000"
+            - name: SERVER_SHUTDOWN
+              value: graceful
+            - name: SPRING_LIFECYCLE_TIMEOUT_PER_SHUTDOWN_PHASE
+              value: 30s
+          resources:
+            requests: {cpu: 500m, memory: 512Mi}
+            limits: {cpu: '2', memory: 1Gi}
+          startupProbe:
+            httpGet: {path: /actuator/health/liveness, port: http}
+            periodSeconds: 5
+            failureThreshold: 36
+          readinessProbe:
+            httpGet: {path: /actuator/health/readiness, port: http}
+            periodSeconds: 5
+            timeoutSeconds: 2
+          livenessProbe:
+            httpGet: {path: /actuator/health/liveness, port: http}
+            periodSeconds: 10
+            timeoutSeconds: 2
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cinema-trade
+  namespace: cinema
+spec:
+  type: ClusterIP
+  selector: {app: cinema-trade}
+  ports: [{name: http, port: 8080, targetPort: http}]
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: cinema-trade
+  namespace: cinema
+spec:
+  minAvailable: 2
+  selector: {matchLabels: {app: cinema-trade}}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: cinema-trade
+  namespace: cinema
+spec:
+  scaleTargetRef: {apiVersion: apps/v1, kind: Deployment, name: cinema-trade}
+  minReplicas: 3
+  maxReplicas: 8
+  behavior:
+    scaleDown: {stabilizationWindowSeconds: 300}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: {type: Utilization, averageUtilization: 60}

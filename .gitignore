@@ -1,4 +1,7 @@
 /target/
+**/target/
+.env
+.work/
 /logs/
 /config/tmdb-local.yml
 /data/
@@ -6,3 +9,5 @@ app.log
 *.log
 .admin_token
 .user_token
+__pycache__/
+*.pyc

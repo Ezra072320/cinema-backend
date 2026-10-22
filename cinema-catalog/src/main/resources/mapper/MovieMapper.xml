@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="edu.czu.cinema.domain.movie.mapper.MovieMapper">
+
+    <resultMap id="MovieMap" type="edu.czu.cinema.domain.movie.entity.Movie">
+        <id property="id" column="id"/>
+        <result property="title" column="title"/>
+        <result property="summary" column="summary"/>
+        <result property="score" column="score"/>
+        <result property="releaseDate" column="release_date"/>
+        <result property="area" column="area"/>
+        <result property="marketStatus" column="status"/>
+        <result property="createTime" column="create_time"/>
+    </resultMap>
+
+    <!--
+        影院销售额榜: 只算**真实已支付票款**.
+        口径: 票仍挂在有效订单上(ticket.status=0 且 order_id 非哨兵), 且订单已支付/已完成
+        (order.status IN (2,6)) —— 剔除待支付(1)、已退款(3)、作废票(取消场次置 2).
+        早先 topSold 的 SUM(全票) 是"满座潜力票房", 且把作废票当已售, 已废弃.
+    -->
+
+
+    <!-- 公开票房榜: 外部来源的全国累计票房(movie.total_box, 人工整理的公开数据). -->
+    <select id="topBoxOffice" resultType="edu.czu.cinema.domain.movie.vo.MovieSoldVO">
+        SELECT m.id AS movieId, m.title, m.poster_url AS posterUrl,
+               0 AS boxOffice, 0 AS soldCount,
+               IFNULL(m.total_box, 0) AS totalBox
+        FROM movie m
+        WHERE m.total_box &gt; 0
+        ORDER BY m.total_box DESC
+        LIMIT #{limit}
+    </select>
+</mapper>

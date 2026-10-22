@@ -7,20 +7,35 @@
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
       </profile>
-      <profile name="Annotation profile for cinema-server" enabled="true">
+      <profile name="Annotation profile for cinema-cloud" enabled="true">
         <sourceOutputDir name="target/generated-sources/annotations" />
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
         <processorPath useClasspath="false">
           <entry name="$MAVEN_REPOSITORY$/org/projectlombok/lombok/1.18.38/lombok-1.18.38.jar" />
         </processorPath>
-        <module name="cinema-server" />
+        <module name="cinema-verification" />
+        <module name="cinema-ai" />
+        <module name="cinema-api" />
+        <module name="cinema-identity" />
+        <module name="cinema-catalog" />
+        <module name="cinema-common" />
+        <module name="cinema-trade" />
+        <module name="cinema-gateway" />
       </profile>
     </annotationProcessing>
   </component>
   <component name="JavacSettings">
     <option name="ADDITIONAL_OPTIONS_OVERRIDE">
-      <module name="cinema-server" options="-parameters" />
+      <module name="cinema-ai" options="-parameters" />
+      <module name="cinema-api" options="-parameters" />
+      <module name="cinema-catalog" options="-parameters" />
+      <module name="cinema-common" options="-parameters" />
+      <module name="cinema-gateway" options="-parameters" />
+      <module name="cinema-identity" options="-parameters" />
+      <module name="cinema-server" options="" />
+      <module name="cinema-trade" options="-parameters" />
+      <module name="cinema-verification" options="-parameters" />
     </option>
   </component>
 </project>

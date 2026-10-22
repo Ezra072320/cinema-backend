@@ -1,0 +1,11 @@
+**/target
+.git
+.idea
+.env
+logs
+data
+config/*local*
+*.log
+.*token
+
+.work/

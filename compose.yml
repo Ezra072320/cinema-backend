@@ -1,0 +1,175 @@
+name: cinema-cloud
+x-business: &business
+  restart: unless-stopped
+  networks: [cinema]
+  environment: &business-env
+    SERVER_PORT: 8080
+    JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET}
+    INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:?Set INTERNAL_SERVICE_KEY}
+    REDIS_HOST: redis
+    REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD}
+    NACOS_ADDR: nacos:8848
+    NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
+    NACOS_PASSWORD: ${NACOS_PASSWORD:?Set NACOS_PASSWORD}
+    CAPTCHA_REQUIRED: ${CAPTCHA_REQUIRED:-true}
+    CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:${WEB_PORT:-8088},http://127.0.0.1:${WEB_PORT:-8088},http://localhost:5173,http://127.0.0.1:5173}
+    ALIYUN_OSS_AK: ${ALIYUN_OSS_AK:-}
+    ALIYUN_OSS_SK: ${ALIYUN_OSS_SK:-}
+    ALIYUN_OSS_ENDPOINT: ${ALIYUN_OSS_ENDPOINT:-https://oss-cn-chengdu.aliyuncs.com}
+    ALIYUN_OSS_BUCKET: ${ALIYUN_OSS_BUCKET:-cinema-bucket}
+  depends_on:
+    mysql: {condition: service_healthy}
+    redis: {condition: service_healthy}
+    nacos-init: {condition: service_completed_successfully}
+  healthcheck:
+    test: [CMD-SHELL, "curl -fsS http://localhost:8080/actuator/health/readiness || exit 1"]
+    interval: 10s
+    timeout: 3s
+    start_period: 90s
+    retries: 10
+  deploy:
+    resources:
+      limits: {memory: 1024M}
+  stop_grace_period: 30s
+
+services:
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD}
+      IDENTITY_DB_PASSWORD: ${IDENTITY_DB_PASSWORD:?Run tools/init-local-env.ps1 first}
+      CATALOG_DB_PASSWORD: ${CATALOG_DB_PASSWORD:?Set CATALOG_DB_PASSWORD}
+      TRADE_DB_PASSWORD: ${TRADE_DB_PASSWORD:?Set TRADE_DB_PASSWORD}
+      AI_DB_PASSWORD: ${AI_DB_PASSWORD:?Set AI_DB_PASSWORD}
+      TZ: Asia/Shanghai
+    command: [--max-connections=300, --default-time-zone=+08:00]
+    volumes: [mysql-data:/var/lib/mysql, ./deploy/mysql:/docker-entrypoint-initdb.d:ro]
+    healthcheck:
+      test: [CMD-SHELL, 'MYSQL_PWD="$$MYSQL_ROOT_PASSWORD" mysql -uroot -e "SELECT 1"']
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    networks: [cinema]
+  redis:
+    image: redis:7.2-alpine
+    restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD}
+    command: [sh, -c, 'exec redis-server --appendonly yes --requirepass "$$REDIS_PASSWORD" --maxmemory 256mb --maxmemory-policy noeviction']
+    volumes: [redis-data:/data]
+    healthcheck:
+      test: [CMD-SHELL, 'REDISCLI_AUTH="$$REDIS_PASSWORD" redis-cli ping | grep PONG']
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    networks: [cinema]
+  nacos:
+    image: nacos/nacos-server:v3.0.3
+    restart: unless-stopped
+    environment:
+      MODE: standalone
+      NACOS_AUTH_ENABLE: 'true'
+      NACOS_AUTH_TOKEN: ${NACOS_TOKEN_SECRET:?Set NACOS_TOKEN_SECRET}
+      NACOS_AUTH_IDENTITY_KEY: cinema
+      NACOS_AUTH_IDENTITY_VALUE: ${NACOS_IDENTITY_VALUE:?Set NACOS_IDENTITY_VALUE}
+      JVM_XMS: 256m
+      JVM_XMX: 512m
+    ports: [127.0.0.1:8848:8848, 127.0.0.1:9848:9848, 127.0.0.1:18848:8080]
+    volumes: [nacos-data:/home/nacos/data]
+    healthcheck:
+      test: [CMD-SHELL, 'curl -fsS http://localhost:8848/nacos/v3/admin/core/state/readiness']
+      interval: 10s
+      timeout: 3s
+      start_period: 45s
+      retries: 20
+    networks: [cinema]
+  nacos-init:
+    image: nacos/nacos-server:v3.0.3
+    restart: 'no'
+    entrypoint: [sh, -c]
+    command:
+      - >-
+        curl -sS -X POST http://nacos:8848/nacos/v3/auth/user/admin
+        --data-urlencode "password=$$NACOS_PASSWORD" >/dev/null;
+        curl -fsS -X POST http://nacos:8848/nacos/v3/auth/user/login
+        --data-urlencode username=nacos --data-urlencode "password=$$NACOS_PASSWORD"
+        | grep -q accessToken
+    environment:
+      NACOS_PASSWORD: ${NACOS_PASSWORD:?Set NACOS_PASSWORD}
+    depends_on: {nacos: {condition: service_healthy}}
+    networks: [cinema]
+  identity:
+    <<: *business
+    image: cinema/identity:local
+    build: {context: ., args: {SERVICE: cinema-identity}}
+    environment:
+      <<: *business-env
+      DB_USERNAME: cinema_identity
+      DB_PASSWORD: ${IDENTITY_DB_PASSWORD:?Set IDENTITY_DB_PASSWORD}
+      DB_URL: jdbc:mysql://mysql:3306/cinema_identity?serverTimezone=Asia/Shanghai&connectTimeout=2000&socketTimeout=10000
+  catalog:
+    <<: *business
+    image: cinema/catalog:local
+    build: {context: ., args: {SERVICE: cinema-catalog}}
+    environment:
+      <<: *business-env
+      DB_USERNAME: cinema_catalog
+      DB_PASSWORD: ${CATALOG_DB_PASSWORD:?Set CATALOG_DB_PASSWORD}
+      DB_URL: jdbc:mysql://mysql:3306/cinema_catalog?serverTimezone=Asia/Shanghai&connectTimeout=2000&socketTimeout=10000
+  trade:
+    <<: *business
+    image: cinema/trade:local
+    build: {context: ., args: {SERVICE: cinema-trade}}
+    environment:
+      <<: *business-env
+      DB_USERNAME: cinema_trade
+      DB_PASSWORD: ${TRADE_DB_PASSWORD:?Set TRADE_DB_PASSWORD}
+      DB_URL: jdbc:mysql://mysql:3306/cinema_trade?serverTimezone=Asia/Shanghai&connectTimeout=2000&socketTimeout=10000
+  ai:
+    <<: *business
+    image: cinema/ai:local
+    build: {context: ., args: {SERVICE: cinema-ai}}
+    environment:
+      <<: *business-env
+      DB_USERNAME: cinema_ai
+      DB_PASSWORD: ${AI_DB_PASSWORD:?Set AI_DB_PASSWORD}
+      DB_URL: jdbc:mysql://mysql:3306/cinema_ai?serverTimezone=Asia/Shanghai&connectTimeout=2000&socketTimeout=10000
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-local-placeholder}
+  gateway:
+    <<: *business
+    image: cinema/gateway:local
+    build: {context: ., args: {SERVICE: cinema-gateway}}
+    environment:
+      <<: *business-env
+    depends_on:
+      redis: {condition: service_healthy}
+      nacos-init: {condition: service_completed_successfully}
+  web:
+    image: cinema/web:local
+    build: ../cinema-web
+    restart: unless-stopped
+    ulimits:
+      nofile: {soft: 200000, hard: 200000}
+    ports: ['${WEB_PORT:-8088}:80']
+    depends_on: {gateway: {condition: service_healthy}}
+    networks: [cinema]
+  admin-init:
+    image: python:3.12-slim
+    profiles: [tools]
+    working_dir: /tools
+    volumes: [./tools:/tools:ro]
+    environment:
+      DB_PASSWORD: ${IDENTITY_DB_PASSWORD:?Set IDENTITY_DB_PASSWORD}
+      INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD:-}
+    command: [sh, -c, 'pip install --no-cache-dir -r requirements-migration.txt && python create_admin.py --host mysql']
+    stdin_open: true
+    tty: true
+    depends_on: {identity: {condition: service_healthy}}
+    networks: [cinema]
+networks:
+  cinema: {}
+volumes:
+  mysql-data: {}
+  redis-data: {}
+  nacos-data: {}

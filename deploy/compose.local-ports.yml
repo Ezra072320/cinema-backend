@@ -1,0 +1,16 @@
+# Optional loopback-only ports for local Java development and database initialization.
+services:
+  mysql:
+    ports: [127.0.0.1:13306:3306]
+  redis:
+    ports: [127.0.0.1:16379:6379]
+  identity:
+    ports: [127.0.0.1:8081:8080]
+  catalog:
+    ports: [127.0.0.1:8082:8080]
+  trade:
+    ports: [127.0.0.1:8083:8080]
+  ai:
+    ports: [127.0.0.1:8084:8080]
+  gateway:
+    ports: [127.0.0.1:8080:8080]
