@@ -1,0 +1,43 @@
+server:
+  port: ${SERVER_PORT:8085}
+  tomcat:
+    threads:
+      max: 160
+      min-spare: 16
+    accept-count: 100
+    max-connections: 2000
+spring:
+  application:
+    name: cinema-notify
+  profiles:
+    default: dev
+  config:
+    import:
+      - classpath:cinema-common.yml
+      - optional:nacos:cinema-notify.yml?group=CINEMA
+  datasource:
+    url: ${DB_URL:jdbc:mysql://127.0.0.1:3306/cinema_notify?serverTimezone=Asia/Shanghai&useUnicode=true&characterEncoding=utf-8&connectTimeout=2000&socketTimeout=10000&rewriteBatchedStatements=true}
+    username: ${DB_USERNAME:cinema_notify}
+    password: ${DB_PASSWORD:}
+  flyway:
+    locations: classpath:db/migration
+    baseline-on-migrate: false
+  cloud:
+    nacos:
+      discovery:
+        enabled: ${NACOS_ENABLED:true}
+        server-addr: ${NACOS_ADDR:127.0.0.1:8848}
+        namespace: ${NACOS_NAMESPACE:}
+        username: ${NACOS_USERNAME:}
+        password: ${NACOS_PASSWORD:}
+      config:
+        enabled: ${NACOS_ENABLED:true}
+        server-addr: ${NACOS_ADDR:127.0.0.1:8848}
+        namespace: ${NACOS_NAMESPACE:}
+        username: ${NACOS_USERNAME:}
+        password: ${NACOS_PASSWORD:}
+cinema:
+  operations:
+    enabled: false
+  messaging:
+    endpoints: ${ROCKETMQ_ENDPOINTS:rocketmq-broker:8081}

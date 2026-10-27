@@ -25,7 +25,8 @@ import static org.mockito.Mockito.*;
 class AdminServiceGuardTest {
 
     private final AdminMapper adminMapper = mock(AdminMapper.class);
-    private final AdminServiceImpl service = new AdminServiceImpl(adminMapper);
+    private final AdminServiceImpl service = new AdminServiceImpl(adminMapper,
+            mock(edu.czu.cinema.domain.admin.access.AdminRbacService.class));
 
     /** 纯单测没有 Spring 容器，Lambda 列名解析需要先注册 TableInfo. */
     @BeforeAll
@@ -93,8 +94,11 @@ class AdminServiceGuardTest {
 
     @Test
     void addAdminWritesBcrypt() {
+        when(adminMapper.insert(any(Admin.class))).thenAnswer(invocation -> {
+            ((Admin) invocation.getArgument(0)).setId(7L);
+            return 1;
+        });
         when(adminMapper.selectOne(any())).thenReturn(null);
-        when(adminMapper.insert(any(Admin.class))).thenReturn(1);
 
         Admin a = service.add(new AdminAddDTO("新管理员", "pass123", 30));
 

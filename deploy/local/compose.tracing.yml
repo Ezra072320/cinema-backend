@@ -1,0 +1,109 @@
+# Base + messaging + search definitions, then this overlay. Select only tracing roles.
+x-agent-env: &agent-env
+  JAVA_TOOL_OPTIONS: '-Xms96m -Xmx256m -XX:MaxDirectMemorySize=64m -XX:ActiveProcessorCount=2 -Duser.timezone=Asia/Shanghai -javaagent:/opt/skywalking/skywalking-agent.jar'
+  SW_AGENT_COLLECTOR_BACKEND_SERVICES: skywalking-oap:11800
+  SW_AGENT_AUTHENTICATION: ${SKYWALKING_AUTH_TOKEN:?Run tools/init-tracing.py}
+  # Low-traffic local tracing only: collect complete requests instead of exhausting
+  # a segment sampling budget part-way through the reactive Gateway chain.
+  SW_AGENT_SAMPLE: '0'
+  # Reactive Redis health polling creates unrelated local segments on this stack.
+  # This profile validates HTTP/Feign/JDBC; Redis tracing is not part of acceptance.
+  SW_EXCLUDE_PLUGINS: lettuce-5.x-6.4.x,lettuce-6.5.x
+  SW_BUFFER_CHANNEL_SIZE: '2'
+  SW_BUFFER_BUFFER_SIZE: '100'
+  SW_LOGGING_OUTPUT: CONSOLE
+  SW_LOGGING_LEVEL: WARN
+  SW_JDBC_TRACE_SQL_PARAMETERS: 'false'
+  SW_PLUGIN_TOMCAT_COLLECT_HTTP_PARAMS: 'false'
+  SW_PLUGIN_SPRINGMVC_COLLECT_HTTP_PARAMS: 'false'
+  SW_PLUGIN_HTTPCLIENT_COLLECT_HTTP_PARAMS: 'false'
+  SW_PLUGIN_HTTP_INCLUDE_HTTP_HEADERS: ''
+  SW_PLUGIN_LETTUCE_TRACE_REDIS_PARAMETERS: 'false'
+  SW_PLUGIN_JEDIS_TRACE_REDIS_PARAMETERS: 'false'
+  SW_PLUGIN_REDISSON_TRACE_REDIS_PARAMETERS: 'false'
+x-base-dependencies: &base-dependencies
+  mysql: {condition: service_healthy}
+  redis: {condition: service_healthy}
+  nacos-init: {condition: service_completed_successfully}
+services:
+  identity:
+    environment:
+      <<: *agent-env
+      SW_AGENT_NAME: cinema-identity
+    volumes: ['./.work/skywalking/mvc-9.8.0:/opt/skywalking:ro']
+  catalog:
+    environment:
+      <<: *agent-env
+      SW_AGENT_NAME: cinema-catalog
+      CINEMA_MESSAGING_ENABLED: 'false'
+    depends_on: !override
+      <<: *base-dependencies
+    volumes: ['./.work/skywalking/mvc-9.8.0:/opt/skywalking:ro']
+  trade:
+    environment:
+      <<: *agent-env
+      SW_AGENT_NAME: cinema-trade
+      CINEMA_MESSAGING_ENABLED: 'false'
+      SEATA_ENABLED: 'false'
+    depends_on: !override
+      <<: *base-dependencies
+    volumes: ['./.work/skywalking/mvc-9.8.0:/opt/skywalking:ro']
+  ai:
+    environment:
+      <<: *agent-env
+      SW_AGENT_NAME: cinema-ai
+    volumes: ['./.work/skywalking/mvc-9.8.0:/opt/skywalking:ro']
+  notify:
+    environment:
+      <<: *agent-env
+      SW_AGENT_NAME: cinema-notify
+    volumes: ['./.work/skywalking/mvc-9.8.0:/opt/skywalking:ro']
+  gateway:
+    environment:
+      <<: *agent-env
+      SW_AGENT_NAME: cinema-gateway
+    volumes: ['./.work/skywalking/gateway-9.8.0:/opt/skywalking:ro']
+  skywalking-oap:
+    image: apache/skywalking-oap-server:11.0.0@sha256:835a0d8de39af9dda760a5df9a992d982376cf6e8934eb8dd69baf72a1612091
+    profiles: [tracing]
+    restart: unless-stopped
+    mem_limit: 1200m
+    environment:
+      JAVA_OPTS: '-Xms256m -Xmx512m -XX:MaxDirectMemorySize=128m -XX:ActiveProcessorCount=2'
+      SW_CLUSTER: standalone
+      SW_STORAGE: elasticsearch
+      SW_NAMESPACE: cinema-observe
+      SW_STORAGE_ES_CLUSTER_NODES: elasticsearch:9200
+      SW_STORAGE_ES_INDEX_SHARDS_NUMBER: '1'
+      SW_STORAGE_ES_INDEX_REPLICAS_NUMBER: '0'
+      # OAP 11 enforces a minimum of two days for trace records.
+      SW_CORE_RECORD_DATA_TTL: '2'
+      SW_CORE_METRICS_DATA_TTL: '2'
+      SW_AUTHENTICATION: ${SKYWALKING_AUTH_TOKEN:?Run tools/init-tracing.py}
+    networks: [cinema]
+    depends_on:
+      elasticsearch: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, bash, -ec, 'exec 3<>/dev/tcp/127.0.0.1/12800']
+      interval: 10s
+      timeout: 3s
+      start_period: 90s
+      retries: 18
+  skywalking-ui:
+    image: apache/skywalking-ui:horizon-1.0.0@sha256:eb08dcf2fe28fc805aaaeb48f25e0b67d141672a0b9a3a174bbfc4135dd6127d
+    profiles: [tracing]
+    restart: unless-stopped
+    mem_limit: 512m
+    environment:
+      NODE_OPTIONS: --max-old-space-size=256
+    ports: ['127.0.0.1:18080:8081']
+    volumes: ['./.work/skywalking/horizon.yaml:/app/horizon.yaml:ro']
+    networks: [cinema]
+    depends_on:
+      skywalking-oap: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, node, -e, 'fetch("http://127.0.0.1:8081/").then(r=>{if(r.status>=500)process.exit(1)}).catch(()=>process.exit(1))']
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 12

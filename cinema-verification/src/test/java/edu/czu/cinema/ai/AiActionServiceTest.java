@@ -95,6 +95,22 @@ class AiActionServiceTest {
     }
 
     @Test
+    void couponPreviewShowsPayableAndConfirmRechecksBeforeSendingTheSelectedCoupon() {
+        var benefits=mock(edu.czu.cinema.remote.BenefitClient.class);
+        org.springframework.test.util.ReflectionTestUtils.setField(service,"benefits",benefits);
+        when(booking.quote(any())).thenReturn(new AiBookingService.BookingQuote("测试影片","一号厅",LocalDateTime.now().plusDays(1),List.of("1排1座"),new BigDecimal("50.00"),"/seats/1"));
+        when(benefits.quote(any())).thenReturn(new edu.czu.cinema.domain.benefit.CouponContracts.Discount(3L,new BigDecimal("10.00"),new BigDecimal("40.00")));
+        var command=AiActionCommand.builder().type(AiActionCommand.Type.CREATE_ORDER).scheduleId(1L).ticketIds(List.of(2L)).couponId(3L).build();
+        var action=prepare(command);
+        assertThat(action.getSummary()).contains("实付¥40.00","退票不返券");
+        verifyNoInteractions(orders);
+        when(orders.createOrder(eq(7L),any())).thenReturn(100L);
+        assertThat(service.confirm(7L,action.getId()).status()).isEqualTo("DONE");
+        verify(orders).createOrder(7L,new edu.czu.cinema.domain.order.dto.OrderAddDTO(1L,List.of(2L),3L));
+        verify(benefits,atLeast(2)).quote(new edu.czu.cinema.domain.benefit.CouponContracts.Reserve(7L,3L,1L,new BigDecimal("50.00")));
+    }
+
+    @Test
     void confirmedActionExecutesOnceEvenWhenRetried() {
         AiAction a = prepare(want());
         when(movies.isWant(3L, 7L)).thenReturn(false);
@@ -342,5 +358,23 @@ class AiActionServiceTest {
         when(movies.operationResult(a.getId(), 7L)).thenReturn("true");
         assertThat(service.confirm(7L, a.getId()).status()).isEqualTo("DONE");
         verify(movies, never()).setWant(any(), any(), anyBoolean());
+    }
+
+    @Test
+    void uncertainOrderResponseReturnsRetryableStatusAndRecoversOriginalOrderBeforeExpiredPreview() {
+        when(booking.quote(any())).thenReturn(new AiBookingService.BookingQuote(
+                "片","厅",LocalDateTime.now().plusDays(1),List.of("3-5"),new BigDecimal("40"),"/seats/8"));
+        AiAction a=prepare(AiActionCommand.builder().type(AiActionCommand.Type.CREATE_ORDER).scheduleId(8L).ticketIds(List.of(101L)).build());
+        when(orders.createOrder(eq(7L),any())).thenThrow(mock(feign.RetryableException.class));
+        assertThatThrownBy(() -> service.confirm(7L,a.getId()))
+                .isInstanceOf(edu.czu.cinema.common.exception.ServiceUnavailableException.class).hasMessageContaining("先核对原办理结果");
+        assertThat(a.getStatus()).isEqualTo("PENDING");
+        assertThat(edu.czu.cinema.remote.OperationContext.get()).isNull();
+        a.setExpiresAt(LocalDateTime.now().minusMinutes(1));
+        when(orders.operationResult(a.getId(),7L)).thenReturn("99");
+        var recovered=service.confirm(7L,a.getId());
+        assertThat(recovered.status()).isEqualTo("DONE");
+        assertThat(recovered.path()).isEqualTo("/pay/99");
+        verify(orders,times(1)).createOrder(eq(7L),any());
     }
 }

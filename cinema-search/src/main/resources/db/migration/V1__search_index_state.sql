@@ -1,0 +1,8 @@
+CREATE TABLE search_index_state (
+ id INT PRIMARY KEY,
+ active_index VARCHAR(100), building_index VARCHAR(100),
+ cursor_version BIGINT NOT NULL DEFAULT 0,
+ status VARCHAR(16) NOT NULL DEFAULT 'EMPTY',
+ last_error VARCHAR(128), updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+INSERT INTO search_index_state(id) VALUES(1);

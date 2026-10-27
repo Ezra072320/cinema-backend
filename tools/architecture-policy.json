@@ -1,0 +1,29 @@
+{
+  "legacyApiEntities": [
+    "edu.czu.cinema.domain.admin.entity.Admin",
+    "edu.czu.cinema.domain.admin.entity.AdminOperationLog",
+    "edu.czu.cinema.domain.hall.entity.Hall",
+    "edu.czu.cinema.domain.hall.entity.HallSeatVersion",
+    "edu.czu.cinema.domain.hall.entity.Seat",
+    "edu.czu.cinema.domain.hall.entity.SeatCoupleGroup",
+    "edu.czu.cinema.domain.hall.entity.SeatTemplate",
+    "edu.czu.cinema.domain.hall.entity.SeatTemplateUnit",
+    "edu.czu.cinema.domain.movie.entity.Movie",
+    "edu.czu.cinema.domain.movie.entity.MovieAltTitle",
+    "edu.czu.cinema.domain.movie.entity.MovieCrew",
+    "edu.czu.cinema.domain.movie.entity.MovieImage",
+    "edu.czu.cinema.domain.movie.entity.MovieTag",
+    "edu.czu.cinema.domain.movie.entity.MovieTypeBind",
+    "edu.czu.cinema.domain.movie.entity.MovieVideo",
+    "edu.czu.cinema.domain.movie.entity.Person",
+    "edu.czu.cinema.domain.movie.entity.Type",
+    "edu.czu.cinema.domain.movie.entity.UserWant",
+    "edu.czu.cinema.domain.order.entity.Order",
+    "edu.czu.cinema.domain.order.entity.OrderAction",
+    "edu.czu.cinema.domain.schedule.entity.Schedule",
+    "edu.czu.cinema.domain.score.entity.Score",
+    "edu.czu.cinema.domain.ticket.entity.Ticket",
+    "edu.czu.cinema.domain.user.entity.User"
+  ],
+  "comment": "Frozen existing wire contracts. New persistence entities belong to their owning application; replace a legacy wire shape with a DTO before moving its entity."
+}

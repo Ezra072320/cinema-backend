@@ -10,6 +10,7 @@ public record AiActionCommand(
         @Positive Long movieId,
         @Positive Long orderId,
         @Positive Long scheduleId,
+        @Positive Long couponId,
         @Size(min = 1, max = 6) List<@NotNull @Positive Long> ticketIds,
         Boolean wanted,
         @Min(1) @Max(5) Integer score,

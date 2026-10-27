@@ -44,6 +44,17 @@ public class AiTool {
     private final ScoreClient scores;
     private final AiActionService actions;
     private final AiSeatSelectionStore seatSelections;
+    @org.springframework.beans.factory.annotation.Autowired(required=false)
+    private edu.czu.cinema.remote.BenefitClient benefits;
+
+    @Tool(description="查询当前用户真实优惠券及使用门槛、状态和有效期；优惠券ID必须来自此查询。取消/超时释放，支付核销，退票不返券。")
+    public ToolResult myCoupons(ToolContext context){return safe(()->{if(benefits==null)throw new BusinessException("优惠券服务暂不可用");return benefits.coupons(AiIdentity.from(context).userId());});}
+
+    @Tool(description="使用用户明确选择的优惠券拟购票确认单，仅拟单，须用户点击确认才执行。couponId来自myCoupons，ticketIds必须来自真实余座查询。金额、券归属与门槛会实时复核。")
+    public ToolResult prepareBookingWithCoupon(Long scheduleId,List<Long> ticketIds,Long couponId,ToolContext context){
+        return prepare(AiActionCommand.builder().type(AiActionCommand.Type.CREATE_ORDER).scheduleId(scheduleId).ticketIds(ticketIds).couponId(couponId).build(),context);
+    }
+
 
     @Tool(
             description =

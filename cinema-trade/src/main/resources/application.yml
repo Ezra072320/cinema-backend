@@ -47,3 +47,54 @@ spring:
       embedding:
         options:
           model: text-embedding-v3
+cinema:
+  messaging:
+    enabled: ${CINEMA_MESSAGING_ENABLED:false}
+    endpoints: ${ROCKETMQ_ENDPOINTS:rocketmq-broker:8081}
+
+seata:
+  enabled: ${SEATA_ENABLED:false}
+  application-id: cinema-trade
+  tx-service-group: cinema_tx_group
+  enable-auto-data-source-proxy: true
+  data-source-proxy-mode: AT
+  registry:
+    type: file
+  config:
+    type: file
+  service:
+    vgroup-mapping:
+      cinema_tx_group: default
+    grouplist:
+      default: ${SEATA_SERVER:127.0.0.1:18091}
+  client:
+    rm:
+      report-success-enable: true
+
+---
+cinema:
+  transactions:
+    lab:
+      enabled: ${CINEMA_TRANSACTIONS_LAB_ENABLED:false}
+
+---
+cinema:
+  jobs:
+    mode: ${CINEMA_JOBS_MODE:local}
+    admin-addresses: ${XXL_JOB_ADMIN_ADDRESSES:http://xxl-job:8080/xxl-job-admin}
+    access-token: ${XXL_JOB_ACCESS_TOKEN:}
+    executor-address: ${XXL_JOB_EXECUTOR_ADDRESS:}
+    log-path: ${XXL_JOB_LOG_PATH:${java.io.tmpdir}/cinema-job-logs}
+    lab:
+      enabled: ${CINEMA_JOBS_LAB_ENABLED:false}
+
+---
+cinema:
+  governance:
+    enabled: ${CINEMA_GOVERNANCE_ENABLED:false}
+spring:
+  cloud:
+    sentinel:
+      transport:
+        client-ip: ${SENTINEL_CLIENT_IP:}
+        port: 8719

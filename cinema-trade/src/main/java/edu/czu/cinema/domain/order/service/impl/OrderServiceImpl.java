@@ -93,6 +93,8 @@ public class OrderServiceImpl implements OrderService {
 
     /** 关单独立事务, 不能自调用 —— 详见 {@link OrderCloseHelper}. */
     private final OrderCloseHelper closeHelper;
+    @org.springframework.beans.factory.annotation.Autowired(required=false)
+    private edu.czu.cinema.transactions.CouponOrderSupport couponSupport;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -166,6 +168,7 @@ public class OrderServiceImpl implements OrderService {
         if (affected != distinctIds.size()) {
             throw new BusinessException(ResultCode.ORDER_LOCK_FAILED, "座位被抢了一部分，请刷新重选");
         }
+        if(dto.couponId()!=null){if(couponSupport==null)throw new BusinessException("优惠券服务不可用");couponSupport.reserve(order,dto.couponId());total=order.getTotalAmount();}
         // 审计: 下单锁座落一条 CREATE(与业务同事务, 随部分锁回滚一起消失)
         orderAuditService.record(
                 order.getId(),
@@ -268,6 +271,7 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public String refund(Long orderId, Long currentUserId, BigDecimal expectedAmount) {
+        if(couponSupport!=null)couponSupport.requireFinal(orderId);
         Order o = orderMapper.selectById(orderId);
         if (o == null) throw new BusinessException(ResultCode.NOT_FOUND, "订单不存在");
         if (!Objects.equals(o.getUserId(), currentUserId)) {
@@ -328,6 +332,7 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public String cancel(Long orderId, Long currentUserId) {
+        if(couponSupport!=null)couponSupport.requireFinal(orderId);
         Order o = orderMapper.selectById(orderId);
         if (o == null) throw new BusinessException(ResultCode.NOT_FOUND, "订单不存在");
         if (!Objects.equals(o.getUserId(), currentUserId)) {
@@ -353,6 +358,7 @@ public class OrderServiceImpl implements OrderService {
         if (!"WECHAT".equals(ch) && !"ALIPAY".equals(ch) && !"CARD".equals(ch)) {
             throw new BusinessException(ResultCode.BAD_REQUEST, "非法支付渠道");
         }
+        if(couponSupport!=null)couponSupport.requireFinal(orderId);
         Order o = orderMapper.selectById(orderId);
         if (o == null) throw new BusinessException(ResultCode.NOT_FOUND, "订单不存在");
         if (!Objects.equals(o.getUserId(), currentUserId)) {
@@ -605,6 +611,7 @@ public class OrderServiceImpl implements OrderService {
         vo.setCanReview(eligibility.allowed());
         vo.setReviewAvailableAt(eligibility.availableAt());
         vo.setReviewReason(eligibility.reason());
+        if(couponSupport!=null)couponSupport.enrich(vo);
         return vo;
     }
 }

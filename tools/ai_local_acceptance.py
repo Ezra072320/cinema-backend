@@ -30,6 +30,9 @@ class Acceptance:
         self.uid = None
         self.schedule = None
         self.token = None
+        self.uncertain_confirmation = False
+        self.confirm_outage = False
+        self.trade_stopped = False
         self.chat = 'accept-' + uuid.uuid4().hex
         self.report = {'passed': [], 'page_errors': [], 'completed': False}
 
@@ -47,8 +50,21 @@ class Acceptance:
             headers['Authorization'] = self.token
         request = urllib.request.Request(self.base + '/api' + path, headers=headers,
             data=json.dumps(body).encode() if body is not None else None, method=method)
-        with urllib.request.urlopen(request, timeout=120) as response:
-            result = json.load(response)
+        financial_write = request.get_method() != 'GET' and (path in ('/user/createOrder','/order/pay')
+            or path.startswith(('/user/refund/','/user/cancelOrder/'))
+            or (path.startswith('/ai/action/') and path.endswith('/confirm')))
+        prior_uncertain = self.uncertain_confirmation
+        if financial_write:
+            self.uncertain_confirmation = True
+        try:
+            with urllib.request.urlopen(request, timeout=120) as response:
+                result = json.load(response)
+        except urllib.error.HTTPError as error:
+            if financial_write and error.code < 500:
+                self.uncertain_confirmation = prior_uncertain
+            raise
+        if financial_write and result.get('code') != 3001:
+            self.uncertain_confirmation = prior_uncertain
         assert result.get('code') == 1, (path, result.get('msg'))
         return result.get('data')
 
@@ -121,6 +137,14 @@ class Acceptance:
             sid = int(self.schedule)
             self.sql(f'DELETE FROM cinema_trade.ticket WHERE schedule_id={sid}; DELETE FROM cinema_trade.schedule WHERE id={sid};')
 
+    def restore_trade(self):
+        if not self.trade_stopped:
+            return
+        # Start the same container to preserve whichever startup group's config is active.
+        result = subprocess.run(['docker','compose','start','--wait','--wait-timeout','240','trade'],cwd=ROOT,capture_output=True)
+        assert result.returncode == 0, 'Unable to restore the existing Trade container'
+        self.trade_stopped = False
+
     def browser_checks(self):
         from playwright.sync_api import sync_playwright, expect
         with sync_playwright() as playwright:
@@ -179,11 +203,14 @@ class Acceptance:
             def card(kind):
                 return page.locator('.action-card').filter(has=page.locator('.action-type', has_text=re.compile('^' + kind + '$'))).first
 
-            def confirm(kind):
-                item = card(kind)
+            def confirm(kind, action_id=None):
+                item = page.locator('[data-action-id="' + action_id + '"]') if action_id else card(kind)
+                self.uncertain_confirmation = True
                 with page.expect_response(lambda result: '/api/ai/action/' in result.url and result.url.endswith('/confirm')) as response:
                     item.get_by_role('button', name='确认办理', exact=True).click()
                 result = response.value.json()
+                if result.get('code') == 1 or (response.value.status < 500 and result.get('code') != 3001):
+                    self.uncertain_confirmation = False
                 assert result['code'] == 1, result.get('msg')
                 expect(item.locator('.action-status')).to_have_text('已办理')
                 return result['data']
@@ -213,11 +240,38 @@ class Acceptance:
                 slips, _ = send('就买刚才的那个座位，帮我生成购票服务单。')
                 assert any(a['type'] == 'CREATE_ORDER' and a['status'] == 'PENDING' for a in slips)
                 assert self.sql(f'SELECT COUNT(*) FROM cinema_trade.`order` WHERE user_id={self.uid}') == '0'
+                if self.confirm_outage:
+                    self.trade_stopped = True
+                    stopped = subprocess.run(['docker','compose','stop','trade'],cwd=ROOT,capture_output=True)
+                    assert stopped.returncode == 0, 'Unable to pause the project Trade container'
+                    self.uncertain_confirmation = True
+                    with page.expect_response(lambda result: '/api/ai/action/' in result.url and result.url.endswith('/confirm')) as unavailable:
+                        card('购票').get_by_role('button',name='确认办理',exact=True).click()
+                    result = unavailable.value.json()
+                    assert unavailable.value.status == 503 and result.get('code') == 3001
+                    assert unavailable.value.headers.get('retry-after') == '2'
+                    assert '先核对原办理结果' in result.get('msg','')
+                    expect(card('购票').locator('.action-status')).to_have_text('待你确认')
+                    assert self.sql(f'SELECT COUNT(*) FROM cinema_trade.`order` WHERE user_id={self.uid}') == '0'
+                    self.restore_trade()
+                    deadline = time.monotonic() + 45
+                    while True:
+                        try:
+                            self.http(f'/schedule/{self.schedule}/seats')
+                            break
+                        except (urllib.error.URLError,AssertionError):
+                            assert time.monotonic() < deadline, 'Trade query route did not recover'
+                            time.sleep(1)
                 booking = confirm('购票')
                 order_id = int(booking['path'].rsplit('/', 1)[1])
                 order = self.http('/order/' + str(order_id))
                 assert order['status'] == 1 and '1-1' in order['seatLabels']
                 self.passed('follow-up booking preserves the exact schedule and seat; only confirmation locks inventory')
+                if self.confirm_outage:
+                    repeated = self.http('/ai/action/' + booking['id'] + '/confirm',{},'POST')
+                    assert repeated['path'] == booking['path'] and repeated['status'] == 'DONE'
+                    assert self.sql(f'SELECT COUNT(*) FROM cinema_trade.`order` WHERE user_id={self.uid}') == '1'
+                    self.passed('real Trade outage returns retryable 503 and restoring the same slip creates exactly one order')
 
                 card('购票').get_by_role('button', name='查看订单与支付状态').click()
                 page.wait_for_url(re.compile('/pay/' + str(order_id)))
@@ -247,9 +301,8 @@ class Acceptance:
 
                 slips, _ = send(f'帮我买场次ID为{self.schedule}的1排2座，生成新的购票服务单。')
                 pending_booking = next(a for a in slips if a['type'] == 'CREATE_ORDER' and a['status'] == 'PENDING')
-                with page.expect_response(lambda result: result.url.endswith('/' + pending_booking['id'] + '/confirm')) as created:
-                    page.locator('[data-action-id="' + pending_booking['id'] + '"]').get_by_role('button', name='确认办理', exact=True).click()
-                canceled_order = int(created.value.json()['data']['path'].rsplit('/', 1)[1])
+                created = confirm('购票',pending_booking['id'])
+                canceled_order = int(created['path'].rsplit('/',1)[1])
                 slips, _ = send(f'帮我取消订单ID为{canceled_order}的待支付订单，生成取消服务单。')
                 assert any(a['type'] == 'CANCEL_ORDER' and a['status'] == 'PENDING' for a in slips)
                 confirm('取消')
@@ -308,8 +361,15 @@ class Acceptance:
             self.browser_checks()
         finally:
             try:
-                self.cleanup()
-                self.report['test_data_cleaned'] = True
+                self.restore_trade()
+                if self.uncertain_confirmation:
+                    self.report['cleanup_deferred'] = True
+                    self.report['test_data_cleaned'] = False
+                    (self.output / 'fixture.json').write_text(json.dumps({'userId':self.uid,'username':self.name,
+                        'scheduleId':self.schedule,'chatId':self.chat},ensure_ascii=False,indent=2),encoding='utf-8')
+                else:
+                    self.cleanup()
+                    self.report['test_data_cleaned'] = True
                 if self.report['completed']:
                     (self.output / 'failure.png').unlink(missing_ok=True)
             finally:
@@ -320,5 +380,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--base-url', default='http://localhost:8088')
     parser.add_argument('--output', type=Path, default=ROOT / 'target/ai-local-acceptance')
+    parser.add_argument('--confirm-outage',action='store_true',help='Pause and restore only Trade before confirming the real booking slip')
     args = parser.parse_args()
-    Acceptance(args.base_url, args.output).run()
+    acceptance = Acceptance(args.base_url,args.output)
+    acceptance.confirm_outage = args.confirm_outage
+    acceptance.run()

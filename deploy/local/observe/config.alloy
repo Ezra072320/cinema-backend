@@ -1,0 +1,51 @@
+logging {
+  level = "warn"
+}
+
+local.file_match "cinema" {
+  path_targets = [
+    {__path__ = "/var/log/cinema/cinema-gateway.json.log", service = "gateway", job = "cinema"},
+    {__path__ = "/var/log/cinema/cinema-identity.json.log", service = "identity", job = "cinema"},
+    {__path__ = "/var/log/cinema/cinema-catalog.json.log", service = "catalog", job = "cinema"},
+    {__path__ = "/var/log/cinema/cinema-trade.json.log", service = "trade", job = "cinema"},
+    {__path__ = "/var/log/cinema/cinema-ai.json.log", service = "ai", job = "cinema"},
+    {__path__ = "/var/log/cinema/cinema-notify.json.log", service = "notify", job = "cinema"},
+    {__path__ = "/var/log/cinema/cinema-benefit.json.log", service = "benefit", job = "cinema"},
+    {__path__ = "/var/log/cinema/cinema-search.json.log", service = "search", job = "cinema"},
+  ]
+  sync_period = "5s"
+}
+
+loki.source.file "cinema" {
+  targets    = local.file_match.cinema.targets
+  forward_to = [loki.process.cinema.receiver]
+}
+
+loki.process "cinema" {
+  stage.json {
+    expressions = {level = "level", timestamp = "\"@timestamp\""}
+  }
+  stage.timestamp {
+    source = "timestamp"
+    format = "RFC3339Nano"
+  }
+  stage.labels {
+    values = {level = ""}
+  }
+  stage.static_labels {
+    values = {environment = "local"}
+  }
+  forward_to = [loki.write.cinema.receiver]
+}
+
+loki.write "cinema" {
+  endpoint {
+    url            = "http://loki:3100/loki/api/v1/push"
+    batch_wait     = "1s"
+    batch_size     = "256KiB"
+    remote_timeout = "5s"
+    min_backoff_period = "1s"
+    max_backoff_period = "10s"
+    max_backoff_retries = 30
+  }
+}

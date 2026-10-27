@@ -501,6 +501,7 @@ public class ScheduleServiceImpl implements ScheduleService {
         if (flipped == 0) {
             throw new BusinessException(ResultCode.CONFLICT, "场次已是取消状态");
         }
+        if(jdbcCouponPending(id))throw new edu.czu.cinema.common.exception.BusinessException("场次有订单事务处理中，请稍后重试取消");
         int refunded = refundOrdersOfSchedule(id);
         ticketService.voidBySchedule(id);
         // 审计: 取消场次属高风险操作，记录操作者/场次/退款笔数（不阻断业务）
@@ -528,7 +529,15 @@ public class ScheduleServiceImpl implements ScheduleService {
      *
      * @return 受影响订单条数
      */
+    @org.springframework.beans.factory.annotation.Autowired(required=false)
+    private edu.czu.cinema.transactions.CouponOrderSupport couponSupport;
+    private boolean jdbcCouponPending(Long scheduleId){
+        if(couponSupport==null)return false;
+        for(var order:orderMapper.selectList(new LambdaQueryWrapper<Order>().eq(Order::getScheduleId,scheduleId)))couponSupport.requireFinal(order.getId());
+        return false;
+    }
     private int refundOrdersOfSchedule(Long scheduleId) {
+        var pending=orderMapper.selectList(new LambdaQueryWrapper<Order>().eq(Order::getScheduleId,scheduleId).eq(Order::getStatus,OrderStatus.PENDING.getCode()));
         // 待支付单: 关单, 不退款(没付过钱)
         int closed =
                 orderMapper.update(
@@ -537,6 +546,7 @@ public class ScheduleServiceImpl implements ScheduleService {
                                 .eq(Order::getScheduleId, scheduleId)
                                 .eq(Order::getStatus, OrderStatus.PENDING.getCode())
                                 .set(Order::getStatus, OrderStatus.CLOSED.getCode()));
+        for(var o:pending){orderAuditService.record(o.getId(),o.getNumber(),OrderAction.ACTION_CLOSE,OrderStatus.PENDING.getCode(),OrderStatus.CLOSED.getCode(),null,OrderAction.OP_SYSTEM,null,"场次取消，关闭待支付订单");}
         // 已支付/旧已完成单: 集合式条件 UPDATE（DML current read）——一次性看齐最新已提交行，
         // 避免「先 SELECT 挑单再逐条 UPDATE」在 REPEATABLE READ 下漏掉事务期间刚提交的支付。
         // refund_amount 用列到列赋值，金额取自每行当前 total_amount。

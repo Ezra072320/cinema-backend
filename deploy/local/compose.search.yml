@@ -1,0 +1,67 @@
+# Combine compose.yml + compose.messaging.yml + this file, with messaging and search profiles.
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.18.6
+    profiles: [search]
+    restart: unless-stopped
+    environment:
+      discovery.type: single-node
+      cluster.name: cinema-local-search
+      node.name: cinema-es
+      xpack.security.enabled: 'false'
+      xpack.ml.enabled: 'false'
+      ingest.geoip.downloader.enabled: 'false'
+      action.auto_create_index: '-cinema-movies-*,+*'
+      ES_JAVA_OPTS: '-Xms384m -Xmx384m -XX:ActiveProcessorCount=2'
+    mem_limit: 1100m
+    ports: ['127.0.0.1:19200:9200']
+    volumes: [elasticsearch-data:/usr/share/elasticsearch/data]
+    networks: [cinema]
+    healthcheck:
+      test: [CMD-SHELL, 'curl -fsS http://localhost:9200/_cluster/health?wait_for_status=yellow || exit 1']
+      interval: 10s
+      timeout: 5s
+      start_period: 45s
+      retries: 18
+  catalog:
+    environment:
+      CINEMA_MESSAGING_ENABLED: 'true'
+      ROCKETMQ_ENDPOINTS: rocketmq-broker:8081
+  search:
+    image: cinema/search:local
+    profiles: [search]
+    build: {context: ., args: {SERVICE: cinema-search}}
+    restart: unless-stopped
+    environment:
+      API_DOCS_ENABLED: ${API_DOCS_ENABLED:-false}
+      SERVER_PORT: 8080
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET}
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:?Set INTERNAL_SERVICE_KEY}
+      REDIS_HOST: redis
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD}
+      NACOS_ADDR: nacos:8848
+      NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
+      NACOS_PASSWORD: ${NACOS_PASSWORD:?Set NACOS_PASSWORD}
+      DB_USERNAME: cinema_search
+      DB_PASSWORD: ${SEARCH_DB_PASSWORD:?Run python tools/init-domain.py search first}
+      DB_URL: jdbc:mysql://mysql:3306/cinema_search?serverTimezone=Asia/Shanghai&connectTimeout=2000&socketTimeout=10000
+      DB_POOL_SIZE: 6
+      ROCKETMQ_ENDPOINTS: rocketmq-broker:8081
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:${WEB_PORT:-8088},http://127.0.0.1:${WEB_PORT:-8088},http://localhost:5173,http://127.0.0.1:5173}
+      JAVA_TOOL_OPTIONS: '-Xms96m -Xmx256m -XX:MaxDirectMemorySize=64m -XX:ActiveProcessorCount=2 -Duser.timezone=Asia/Shanghai'
+    mem_limit: 640m
+    networks: [cinema]
+    depends_on:
+      mysql: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      nacos-init: {condition: service_completed_successfully}
+      rocketmq-init: {condition: service_completed_successfully}
+    healthcheck:
+      test: [CMD-SHELL, 'curl -fsS http://localhost:8080/actuator/health/readiness || exit 1']
+      interval: 10s
+      timeout: 3s
+      start_period: 90s
+      retries: 12
+volumes:
+  elasticsearch-data: {}

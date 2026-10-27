@@ -241,6 +241,17 @@ class PersistentAiChatServiceTest {
     }
 
     @Test
+    void explicitRefundSlipIsDifferentFromDismissingOrConsultingAnExistingSlip() {
+        assertThat(PersistentAiChatService.isAfterSaleRequest("现在帮我退款，生成退票服务单。")).isTrue();
+        assertThat(PersistentAiChatService.isAfterSaleRequest("请生成一张退票确认单")).isTrue();
+        assertThat(PersistentAiChatService.isAfterSaleRequest("帮我取消这张退票服务单")).isFalse();
+        assertThat(PersistentAiChatService.isAfterSaleRequest("撤销退款确认单")).isFalse();
+        assertThat(PersistentAiChatService.isAfterSaleRequest("不生成退款服务单")).isFalse();
+        assertThat(PersistentAiChatService.isAfterSaleRequest("退票服务单怎么用")).isFalse();
+        assertThat(PersistentAiChatService.isAfterSaleRequest("退票规则是什么，可以生成服务单吗")).isFalse();
+    }
+
+    @Test
     void autoAfterSaleCreatesSlipForTheOnlyOrderInTheChat() {
         AiActionMapper actionMapper = mock(AiActionMapper.class);
         AiAction create = new AiAction();
@@ -280,7 +291,7 @@ class PersistentAiChatServiceTest {
                         actions,
                         mock(edu.czu.cinema.ai.service.AiSeatSelectionStore.class));
 
-        String note = service.autoPrepareAfterSale(1L, "cid-1", "我已经支付了，帮我退款。");
+        String note = service.autoPrepareAfterSale(1L, "cid-1", "现在帮我退款，生成退票服务单。");
 
         assertThat(note).contains("订单ID 5", "申请退票", "预生成");
         verify(actions)
@@ -707,7 +718,9 @@ class PersistentAiChatServiceTest {
         when(messageMapper.delete(any())).thenReturn(1);
         when(sessionMapper.deleteById(any())).thenReturn(1);
         when(actionMapper.update(any(), any())).thenReturn(3);
-        var job = new edu.czu.cinema.ai.service.AiDataRetentionJob(actionMapper, messageMapper, sessionMapper);
+        var store = mock(edu.czu.cinema.ai.service.AiRetentionStore.class);
+        when(store.candidates(any())).thenReturn(List.of());
+        var job = new edu.czu.cinema.ai.service.AiDataRetentionJob(actionMapper, store, mock(edu.czu.cinema.ai.service.DistributedGenerationAdmission.class));
         job.cleanup();
         verify(actionMapper).update(eq(null), any());
     }
@@ -715,14 +728,14 @@ class PersistentAiChatServiceTest {
     @Test
     void retentionJobPurgesOldInactiveSessionsWithTheirMessages() {
         var actionMapper = mock(edu.czu.cinema.ai.mapper.AiActionMapper.class);
-        AiSession old = session(1L);
-        old.setUpdateTime(java.time.LocalDateTime.now().minusDays(400)); // 远超 180 天保留期
-        when(sessionMapper.selectList(any())).thenReturn(java.util.List.of(old));
-        when(sessionMapper.deleteById(any())).thenReturn(1);
-        when(messageMapper.delete(any())).thenReturn(1);
-        var job = new edu.czu.cinema.ai.service.AiDataRetentionJob(actionMapper, messageMapper, sessionMapper);
-        job.cleanup();
-        verify(messageMapper).delete(any());
-        verify(sessionMapper).deleteById("cid-1");
+        var candidate = new edu.czu.cinema.ai.service.AiRetentionStore.Candidate("cid-1",1L);
+        var store = mock(edu.czu.cinema.ai.service.AiRetentionStore.class);
+        when(store.candidates(any())).thenReturn(List.of(candidate));
+        when(store.purge(eq(candidate),any())).thenReturn(true);
+        var admission = mock(edu.czu.cinema.ai.service.DistributedGenerationAdmission.class);
+        when(admission.whileSessionIdle(eq(1L),eq("cid-1"),any())).thenAnswer(call -> { ((Runnable)call.getArgument(2)).run(); return true; });
+        var job = new edu.czu.cinema.ai.service.AiDataRetentionJob(actionMapper, store, admission);
+        assertThat(job.runCleanup().purged()).isEqualTo(1);
+        verify(store).purge(eq(candidate),any());
     }
 }

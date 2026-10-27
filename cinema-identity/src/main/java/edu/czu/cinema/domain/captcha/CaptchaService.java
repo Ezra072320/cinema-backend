@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
 import java.time.Duration;
+import jakarta.annotation.PostConstruct;
 
 /**
  * 图形验证码服务.
@@ -48,6 +49,21 @@ public class CaptchaService {
 
     private final StringRedisTemplate redisTemplate;
 
+    /** Initialize AWT fonts/ImageIO before readiness, without issuing any Redis ticket. */
+    @PostConstruct
+    public void warmRenderer() {
+        render(new SpecCaptcha(CAPTCHA_WIDTH, CAPTCHA_HEIGHT, CAPTCHA_LENGTH));
+        log.info("Captcha image renderer is ready");
+    }
+
+    private byte[] render(SpecCaptcha captcha) {
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        if (!captcha.out(output) || output.size() < 8) {
+            throw new IllegalStateException("Captcha image renderer is unavailable");
+        }
+        return output.toByteArray();
+    }
+
     /**
      * 生成一张验证码图片并把答案写入 Redis（含同 IP 频控）.
      *
@@ -62,12 +78,10 @@ public class CaptchaService {
         guardGenerateRate(clientIp);
         SpecCaptcha captcha = new SpecCaptcha(CAPTCHA_WIDTH, CAPTCHA_HEIGHT, CAPTCHA_LENGTH);
         String code = captcha.text();
+        byte[] png = render(captcha);
         redisTemplate.opsForValue().set(REDIS_KEY_PREFIX + ticket, code, TTL);
-
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
-        captcha.out(bos);
         log.debug("captcha issued: ticket={}, ttl={}m", ticket, TTL.toMinutes());
-        return bos.toByteArray();
+        return png;
     }
 
     /**

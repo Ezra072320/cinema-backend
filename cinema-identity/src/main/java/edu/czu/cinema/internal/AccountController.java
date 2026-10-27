@@ -20,6 +20,12 @@ public class AccountController {
     private final AccountStateGuard guard;
     private final OperationJournal journal;
 
+    @GetMapping("/access")
+    public edu.czu.cinema.domain.admin.AccountAccess access(
+            @RequestParam String role, @RequestParam Long id, @RequestParam String pv) {
+        return guard.verify(role, id, pv);
+    }
+
     @GetMapping("/active")
     public boolean active(
             @RequestParam String role, @RequestParam Long id, @RequestParam String pv) {

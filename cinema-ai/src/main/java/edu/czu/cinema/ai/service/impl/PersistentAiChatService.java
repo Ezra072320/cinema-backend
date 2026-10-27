@@ -756,12 +756,15 @@ public class PersistentAiChatService implements AiChatService {
     static boolean isAfterSaleRequest(String question) {
         if (question == null || question.isBlank()) return false;
         String q = question.replaceAll("\\s+", "");
-        if (q.matches(".*(不要|不用|不想|不需要|别|先不|暂不).*")) return false;
+        if (q.matches(".*(不要|不用|不想|不需要|别|先不|暂不|无需|不必|不生成|不创建).*")) return false;
         if (q.contains("取消想看") || q.contains("取消收藏")) return false;
+        if (q.matches(".*(?:撤销|作废).*(?:服务单|确认单).*")) return false;
+        if (q.matches(".*取消(?:这张|这个|那张|那个|该|刚才的|刚刚的|已有的)?(?:退票|退款|购票|取消订单)?(?:服务单|确认单).*")) return false;
         // “取消这个服务单”是撤销待确认动作，不是订单售后；交给模型按服务单上下文回答。
-        if (q.contains("服务单") && !q.contains("订单")) return false;
+        boolean draftRefund = q.matches(".*(?:生成|创建|准备|拟定|申请)(?:一张|一个)?(?:退票|退款)(?:服务单|确认单).*" );
+        if ((q.contains("服务单") || q.contains("确认单")) && !q.contains("订单") && !draftRefund) return false;
         boolean request =
-                q.contains("帮我退款")
+                draftRefund || q.contains("帮我退款")
                         || q.contains("我要退款")
                         || q.contains("给我退款")
                         || q.contains("申请退款")

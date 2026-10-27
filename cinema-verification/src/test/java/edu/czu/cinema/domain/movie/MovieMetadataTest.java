@@ -27,7 +27,7 @@ class MovieMetadataTest {
     final MovieTypeBindMapper bindings = mock(MovieTypeBindMapper.class);
     final ObjectMapper json = new ObjectMapper();
     final MaoyanImportServiceImpl importer = new MaoyanImportServiceImpl(movies,people,crew,images,
-            mock(MovieVideoMapper.class),mock(MovieTagMapper.class),mock(MovieAltTitleMapper.class),types,bindings);
+            mock(MovieVideoMapper.class),mock(MovieTagMapper.class),mock(MovieAltTitleMapper.class),types,bindings,mock(edu.czu.cinema.domain.movie.search.MovieProjectionWriter.class));
     final MovieMediaStore media = mock(MovieMediaStore.class);
     final MovieMetadataService service = new MovieMetadataService(movies,importer,media,json);
 
@@ -52,7 +52,7 @@ class MovieMetadataTest {
                 {"id":99,"nm":"历史影片","source":"MAOYAN","dur":120,"story":"更新简介"}
                 """,MaoyanMovieSnapshot.class),List.of(),List.of());
         // insert-only：已存在的影片写入路径直接跳过，一个字段都不改
-        var written = new MainlandMovieWriter(importer,movies,people,crew).write(fetched);
+        var written = new MainlandMovieWriter(importer,movies,people,crew,mock(edu.czu.cinema.domain.movie.search.MovieProjectionWriter.class)).write(fetched);
         assertThat(written.created()).isFalse();
         assertThat(written.movieId()).isEqualTo(12L);
         assertThat(movie.getRuntimeMin()).isEqualTo(108);
@@ -65,7 +65,7 @@ class MovieMetadataTest {
                 {"id":99,"nm":"历史影片","source":"MAOYAN","dir":"新导演","cat":"动作","img":"https://source/new.jpg"}
                 """,MaoyanMovieSnapshot.class);
         var fetched = new MainlandMovieFetcher.Fetched(snapshot,List.of(new MainlandMovieFetcher.Credit(2,"新导演",null,2,null)),List.of());
-        new MainlandMovieWriter(importer,movies,people,crew).write(fetched);
+        new MainlandMovieWriter(importer,movies,people,crew,mock(edu.czu.cinema.domain.movie.search.MovieProjectionWriter.class)).write(fetched);
         assertThat(movie.getDir()).isEqualTo("人工导演");
         verifyNoInteractions(crew,images,bindings,types,people);
     }
@@ -75,7 +75,7 @@ class MovieMetadataTest {
         var snapshot = json.readValue("""
                 {"id":77,"nm":"其他译名","source":"TMDB","dur":180,"story":"替代简介","language":"汉语","rt":"2026-10-17","sc":9.9,"status":1}
                 """,MaoyanMovieSnapshot.class);
-        new MainlandMovieWriter(importer,movies,people,crew).repair(12L,new MainlandMovieFetcher.Fetched(snapshot,List.of(),List.of()));
+        new MainlandMovieWriter(importer,movies,people,crew,mock(edu.czu.cinema.domain.movie.search.MovieProjectionWriter.class)).repair(12L,new MainlandMovieFetcher.Fetched(snapshot,List.of(),List.of()));
         assertThat(movie.getLanguage()).isEqualTo("汉语");
         assertThat(movie.getSummary()).isEqualTo("原简介");
         assertThat(movie.getRuntimeMin()).isEqualTo(100);

@@ -1,0 +1,329 @@
+{
+  "uid": "cinema-local-metrics",
+  "title": "Cinema 本地应用监控",
+  "schemaVersion": 42,
+  "version": 1,
+  "editable": false,
+  "timezone": "Asia/Shanghai",
+  "refresh": "15s",
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
+  "tags": [
+    "cinema",
+    "local"
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "service",
+        "label": "应用",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "cinema-prometheus"
+        },
+        "query": "label_values(up{job=\"cinema\"}, service)",
+        "refresh": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "可采集应用",
+      "description": "按应用采样；跨服务请求分别计数，不代表独立用户请求数。",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "cinema-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(up{job=\"cinema\",service=~\"$service\"})",
+          "legendFormat": "{{service}}",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "各应用 HTTP 请求 / 秒",
+      "description": "按应用采样；跨服务请求分别计数，不代表独立用户请求数。",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "cinema-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by(service) (rate(http_server_requests_seconds_count{job=\"cinema\",service=~\"$service\",uri!~\"/actuator.*\"}[2m]))",
+          "legendFormat": "{{service}}",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "HTTP p95（排除 AI 对话流）",
+      "description": "按应用采样；跨服务请求分别计数，不代表独立用户请求数。",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "cinema-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95,sum by(le,service) (rate(http_server_requests_seconds_bucket{job=\"cinema\",service=~\"$service\",uri!~\"/actuator.*|/api/ai/chat.*\"}[2m])))",
+          "legendFormat": "{{service}}",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "各应用 HTTP 5xx / 秒",
+      "description": "按应用采样；跨服务请求分别计数，不代表独立用户请求数。",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "cinema-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by(service) (rate(http_server_requests_seconds_count{job=\"cinema\",service=~\"$service\",status=~\"5..\",uri!~\"/actuator.*\"}[2m]))",
+          "legendFormat": "{{service}}",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 5,
+      "title": "JVM 堆使用率",
+      "description": "按应用采样；跨服务请求分别计数，不代表独立用户请求数。",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "cinema-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "100 * sum by(service) (jvm_memory_used_bytes{job=\"cinema\",service=~\"$service\",area=\"heap\"}) / sum by(service) (jvm_memory_max_bytes{job=\"cinema\",service=~\"$service\",area=\"heap\"} > 0)",
+          "legendFormat": "{{service}}",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 6,
+      "title": "Hikari 活跃连接",
+      "description": "按应用采样；跨服务请求分别计数，不代表独立用户请求数。",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "cinema-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by(service) (hikaricp_connections_active{job=\"cinema\",service=~\"$service\"})",
+          "legendFormat": "{{service}}",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 7,
+      "title": "应用 CPU 使用率",
+      "description": "按应用采样；跨服务请求分别计数，不代表独立用户请求数。",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "cinema-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "100 * process_cpu_usage{job=\"cinema\",service=~\"$service\"}",
+          "legendFormat": "{{service}}",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 8,
+      "title": "GC 暂停 / 秒",
+      "description": "按应用采样；跨服务请求分别计数，不代表独立用户请求数。",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "cinema-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by(service) (rate(jvm_gc_pause_seconds_sum{job=\"cinema\",service=~\"$service\"}[2m]))",
+          "legendFormat": "{{service}}",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    }
+  ]
+}

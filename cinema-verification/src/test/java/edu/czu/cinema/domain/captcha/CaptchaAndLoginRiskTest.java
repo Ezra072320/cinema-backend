@@ -15,6 +15,12 @@ import static org.mockito.Mockito.*;
 
 /** 验证码一次性消费（P1-S3）与登录失败锁定. */
 class CaptchaAndLoginRiskTest {
+    @Test
+    void startupRendererWarmupDoesNotIssueOrConsumeAnyRedisTicket() {
+        StringRedisTemplate untouched = mock(StringRedisTemplate.class);
+        assertThatCode(() -> new CaptchaService(untouched).warmRenderer()).doesNotThrowAnyException();
+        verifyNoInteractions(untouched);
+    }
 
     @SuppressWarnings("unchecked")
     private final ValueOperations<String, String> ops = mock(ValueOperations.class);

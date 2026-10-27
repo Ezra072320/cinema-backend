@@ -1,0 +1,18 @@
+{
+  "grpcWorkerLoopNum": 2,
+  "grpcThreadPoolNums": 4,
+  "grpcProducerThreadPoolNums": 2,
+  "grpcConsumerThreadPoolNums": 2,
+  "grpcRouteThreadPoolNums": 2,
+  "grpcClientManagerThreadPoolNums": 2,
+  "grpcTransactionThreadPoolNums": 2,
+  "producerProcessorThreadPoolNums": 2,
+  "consumerProcessorThreadPoolNums": 2,
+  "topicRouteServiceThreadPoolNums": 2,
+  "remotingHeartbeatThreadPoolNums": 2,
+  "remotingTopicRouteThreadPoolNums": 2,
+  "remotingSendMessageThreadPoolNums": 2,
+  "remotingPullMessageThreadPoolNums": 2,
+  "remotingUpdateOffsetThreadPoolNums": 2,
+  "remotingDefaultThreadPoolNums": 2
+}

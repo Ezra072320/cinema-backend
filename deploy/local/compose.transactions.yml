@@ -1,0 +1,79 @@
+# Combine compose.yml and compose.messaging.yml; enable messaging and transactions profiles.
+services:
+  seata:
+    image: cinema/seata:local
+    build: {context: ./deploy/local/seata}
+    profiles: [transactions]
+    restart: unless-stopped
+    environment:
+      SEATA_IP: seata
+      SEATA_PORT: 8091
+      SEATA_DB_PASSWORD: ${SEATA_DB_PASSWORD:?Run init-domain.py seata}
+      SEATA_CONSOLE_PASSWORD: ${SEATA_CONSOLE_PASSWORD:?Run init-domain.py seata}
+      SEATA_SECURITY_SECRET: ${SEATA_SECURITY_SECRET:?Run init-domain.py seata}
+      JVM_XMS: 128m
+      JVM_XMX: 256m
+      JVM_MaxDirectMemorySize: 64m
+      JVM_MetaspaceSize: 64m
+      JVM_MaxMetaspaceSize: 192m
+      JAVA_OPT: '-XX:ActiveProcessorCount=2 -Duser.timezone=Asia/Shanghai'
+      LOADER_PATH: /seata-server/libs
+    mem_limit: 640m
+    ports: ['127.0.0.1:18091:8091']
+    volumes: ['./deploy/local/seata/application.yml:/seata-server/resources/application.yml:ro']
+    networks: [cinema]
+    depends_on:
+      mysql: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, bash, -ec, 'exec 3<>/dev/tcp/127.0.0.1/8091']
+      interval: 10s
+      timeout: 3s
+      start_period: 60s
+      retries: 18
+  trade:
+    environment:
+      SEATA_ENABLED: 'true'
+      SEATA_SERVER: seata:8091
+      CINEMA_TRANSACTIONS_LAB_ENABLED: 'true'
+    depends_on:
+      seata: {condition: service_healthy}
+      benefit: {condition: service_healthy}
+  benefit:
+    image: cinema/benefit:local
+    profiles: [transactions]
+    build: {context: ., args: {SERVICE: cinema-benefit}}
+    restart: unless-stopped
+    environment:
+      API_DOCS_ENABLED: ${API_DOCS_ENABLED:-false}
+      SERVER_PORT: 8080
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET}
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:?Set INTERNAL_SERVICE_KEY}
+      REDIS_HOST: redis
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD}
+      NACOS_ADDR: nacos:8848
+      NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
+      NACOS_PASSWORD: ${NACOS_PASSWORD:?Set NACOS_PASSWORD}
+      DB_USERNAME: cinema_benefit
+      SPRING_FLYWAY_BASELINE_ON_MIGRATE: 'true'
+      SPRING_FLYWAY_BASELINE_VERSION: '0'
+      DB_PASSWORD: ${BENEFIT_DB_PASSWORD:?Run init-domain.py benefit}
+      DB_URL: jdbc:mysql://mysql:3306/cinema_benefit?serverTimezone=Asia/Shanghai&connectTimeout=2000&socketTimeout=10000
+      DB_POOL_SIZE: 6
+      ROCKETMQ_ENDPOINTS: rocketmq-broker:8081
+      SEATA_ENABLED: 'true'
+      SEATA_SERVER: seata:8091
+      JAVA_TOOL_OPTIONS: '-Xms96m -Xmx256m -XX:MaxDirectMemorySize=64m -XX:ActiveProcessorCount=2 -Duser.timezone=Asia/Shanghai'
+    mem_limit: 640m
+    networks: [cinema]
+    depends_on:
+      mysql: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      nacos-init: {condition: service_completed_successfully}
+      seata: {condition: service_healthy}
+      rocketmq-init: {condition: service_completed_successfully}
+    healthcheck:
+      test: [CMD-SHELL, 'curl -fsS http://localhost:8080/actuator/health/readiness || exit 1']
+      interval: 10s
+      timeout: 3s
+      start_period: 90s
+      retries: 12

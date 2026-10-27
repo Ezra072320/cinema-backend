@@ -27,6 +27,7 @@ import java.util.Map;
 public class OrderController {
 
     private final OrderService orderService;
+    private final edu.czu.cinema.transactions.CouponCheckout couponCheckout;
     private final edu.czu.cinema.remote.OperationJournal journal;
 
     @Operation(summary = "创建订单（锁定座位）")
@@ -35,6 +36,7 @@ public class OrderController {
             @Valid @RequestBody OrderAddDTO dto,
             @RequestHeader(value = "Idempotency-Key", required = false) String key) {
         Long uid = SecurityUtils.requireUserId();
+        if(dto.couponId()!=null){if(key==null||key.isBlank())throw new edu.czu.cinema.common.exception.BusinessException("使用优惠券需要有效操作编号");return R.ok(couponCheckout.create(uid,dto,"web:"+uid+":"+key));}
         return R.ok(
                 key == null
                         ? orderService.createOrder(dto)

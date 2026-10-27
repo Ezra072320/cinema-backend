@@ -47,6 +47,8 @@ public class AiActionService {
     private final CatalogClient movies;
     private final ScoreClient scores;
     private final AccountClient users;
+    @org.springframework.beans.factory.annotation.Autowired(required=false)
+    private edu.czu.cinema.remote.BenefitClient benefits;
 
     public record View(
             String id,
@@ -175,8 +177,24 @@ public class AiActionService {
         return view(a);
     }
 
-    @Transactional(rollbackFor = Exception.class)
+    @Transactional(rollbackFor = Exception.class, timeout = 25)
     public View confirm(Long uid, String id) {
+        try {
+            return confirmOwned(uid,id);
+        } catch (feign.RetryableException failure) {
+            throw confirmationUnavailable();
+        } catch (BusinessException failure) {
+            if (failure.getCode() == ResultCode.REMOTE_ERROR.getCode()) throw confirmationUnavailable();
+            throw failure;
+        }
+    }
+
+    private edu.czu.cinema.common.exception.ServiceUnavailableException confirmationUnavailable() {
+        return new edu.czu.cinema.common.exception.ServiceUnavailableException(
+                "服务暂不可用，办理结果尚未确认。请稍后再次确认本单，系统会先核对原办理结果");
+    }
+
+    private View confirmOwned(Long uid, String id) {
         AiAction a = ownedLocked(uid, id);
         if ("DONE".equals(a.getStatus())) return view(a); // 重复点击/重试只返回已执行结果
         if (recover(uid, a)) return view(a);
@@ -192,7 +210,7 @@ public class AiActionService {
             switch (c.type()) {
                 case CREATE_ORDER -> {
                     Long orderId =
-                            orders.createOrder(uid, new OrderAddDTO(c.scheduleId(), c.ticketIds()));
+                            orders.createOrder(uid, new OrderAddDTO(c.scheduleId(), c.ticketIds(),c.couponId()));
                     a.setPath("/pay/" + orderId);
                     result = "订单已创建，座位已锁定，请在15分钟内到支付页完成模拟支付。";
                 }
@@ -298,8 +316,14 @@ public class AiActionService {
     private Preview preview(Long uid, AiActionCommand c) {
         return switch (c.type()) {
             case CREATE_ORDER -> {
-                var q = booking.quote(new OrderAddDTO(c.scheduleId(), c.ticketIds()));
-                yield new Preview("确认购票", q.summary(), q.path());
+                var q = booking.quote(new OrderAddDTO(c.scheduleId(), c.ticketIds(),c.couponId()));
+                String summary=q.summary();
+                if(c.couponId()!=null){
+                    if(benefits==null)throw new BusinessException("优惠券服务暂不可用");
+                    var discount=benefits.quote(new edu.czu.cinema.domain.benefit.CouponContracts.Reserve(uid,c.couponId(),1L,q.total()));
+                    summary += "\n使用优惠券 #"+c.couponId()+"，优惠¥"+discount.discount().toPlainString()+"，实付¥"+discount.payable().toPlainString()+"。支付后核销，退票不返券。";
+                }
+                yield new Preview("确认购票", summary, q.path());
             }
             case CANCEL_ORDER -> {
                 var o = order(uid, c.orderId());

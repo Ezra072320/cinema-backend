@@ -97,4 +97,19 @@ return 1
         } catch (RuntimeException ignored) {
         }
     }
+
+    /** Maintenance shares the generation/deletion lease without consuming a daily request. */
+    public boolean whileSessionIdle(Long uid, String chat, Runnable maintenance) {
+        String prefix = "cinema:ai:{" + uid + "}:";
+        String token = UUID.randomUUID().toString();
+        var keys = List.of(prefix + "running", prefix + "chat:" + chat);
+        if (!Boolean.TRUE.equals(redis.opsForValue().setIfAbsent(keys.get(1),token,Duration.ofSeconds(30))))
+            return false;
+        try {
+            maintenance.run();
+            return true;
+        } finally {
+            release(keys,token);
+        }
+    }
 }

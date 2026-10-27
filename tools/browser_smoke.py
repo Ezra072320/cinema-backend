@@ -27,6 +27,7 @@ def main():
     parser.add_argument('--movie-id', type=int, default=14)
     parser.add_argument('--second-movie-id', type=int, default=15)
     parser.add_argument('--output', type=Path, default=ROOT / 'target/browser-smoke')
+    parser.add_argument('--allow-search-offline', action='store_true', help='Verify the optional Search fallback in non-search startup groups')
     args = parser.parse_args()
     assert 0 <= args.redis_database <= 15
     settings = dict(line.split('=', 1) for line in args.env_file.read_text(encoding='utf-8').splitlines()
@@ -61,6 +62,9 @@ def main():
 
         def response(result):
             path = urlsplit(result.url).path
+            if args.allow_search_offline and path in ('/api/search/movies', '/api/admin/search/status') and result.status in (502, 503, 504):
+                report['search_fallbacks'] = report.get('search_fallbacks', 0) + 1
+                return
             if not path.startswith('/api/') or (injecting_ranking_failure and path == '/api/movie/topSales'):
                 return
             entry = {'path': path, 'status': result.status}
@@ -145,9 +149,10 @@ def main():
             passed('real captcha and administrator browser login')
 
             for path in ['/manage/overview', '/manage/users', '/manage/admins', '/manage/movies',
-                         '/manage/halls', '/manage/schedules', '/manage/orders', '/manage/revenue']:
+                         '/manage/halls', '/manage/schedules', '/manage/orders', '/manage/benefits', '/manage/revenue', '/manage/governance']:
                 goto(path)
-            passed('all eight administrator pages load')
+            passed('all ten administrator pages load')
+            goto('/manage/revenue')
             page.get_by_role('button', name='导出报表', exact=True).click()
             with page.expect_download() as downloaded:
                 page.get_by_role('menuitem', name='每日明细 CSV', exact=True).click()

@@ -1,0 +1,50 @@
+server:
+  port: 7091
+spring:
+  application:
+    name: seata-server
+  main:
+    web-application-type: none
+logging:
+  config: classpath:logback-spring.xml
+  file:
+    path: /root/logs/seata
+console:
+  user:
+    username: ${SEATA_CONSOLE_USER:cinema}
+    password: ${SEATA_CONSOLE_PASSWORD}
+seata:
+  security:
+    secretKey: ${SEATA_SECURITY_SECRET}
+    tokenValidityInMilliseconds: 1800000
+    csrf-ignore-urls: /metadata/v1/**
+    ignore:
+      urls: /,/**/*.css,/**/*.js,/**/*.html,/**/*.map,/**/*.svg,/**/*.png,/**/*.ico,/console-fe/public/**,/api/v1/auth/login
+  config:
+    type: file
+  registry:
+    type: file
+  store:
+    mode: db
+    session:
+      mode: db
+    lock:
+      mode: db
+    db:
+      datasource: hikari
+      db-type: mysql
+      driver-class-name: com.mysql.cj.jdbc.Driver
+      url: jdbc:mysql://mysql:3306/cinema_seata?rewriteBatchedStatements=true&serverTimezone=Asia/Shanghai&connectTimeout=2000&socketTimeout=10000
+      user: cinema_seata
+      password: ${SEATA_DB_PASSWORD}
+      min-conn: 2
+      max-conn: 8
+      global-table: global_table
+      branch-table: branch_table
+      lock-table: lock_table
+      distributed-lock-table: distributed_lock
+      query-limit: 100
+      max-wait: 5000
+  server:
+    service-port: 8091
+    enable-check-auth: true

@@ -15,7 +15,8 @@ class AccountStatePvTest {
 
     private final UserMapper userMapper = mock(UserMapper.class);
     private final AdminMapper adminMapper = mock(AdminMapper.class);
-    private final AccountStateGuard guard = new AccountStateGuard(userMapper, adminMapper);
+    private final AccountStateGuard guard = new AccountStateGuard(userMapper, adminMapper,
+            mock(edu.czu.cinema.domain.admin.access.AdminRbacService.class));
 
     private User user(long id, String hash, int status) {
         User u = new User();

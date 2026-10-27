@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <springProperty scope="context" name="APP_NAME" source="spring.application.name" defaultValue="cinema"/>
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="org.springframework.boot.logging.logback.StructuredLogEncoder">
+            <format>edu.czu.cinema.observe.CinemaJsonLogFormatter</format>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+    <root level="INFO"><appender-ref ref="CONSOLE"/></root>
+    <springProfile name="local-logs">
+        <appender name="LOCAL_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+            <file>/app/logs/${APP_NAME}.json.log</file>
+            <encoder class="org.springframework.boot.logging.logback.StructuredLogEncoder">
+                <format>edu.czu.cinema.observe.CinemaJsonLogFormatter</format>
+                <charset>UTF-8</charset>
+            </encoder>
+            <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+                <fileNamePattern>/app/logs/archive/${APP_NAME}.%d{yyyy-MM-dd}.%i.json.gz</fileNamePattern>
+                <maxFileSize>5MB</maxFileSize>
+                <maxHistory>2</maxHistory>
+                <totalSizeCap>20MB</totalSizeCap>
+            </rollingPolicy>
+        </appender>
+        <root level="INFO"><appender-ref ref="LOCAL_FILE"/></root>
+    </springProfile>
+</configuration>

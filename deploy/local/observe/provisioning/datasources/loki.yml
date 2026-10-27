@@ -1,0 +1,14 @@
+apiVersion: 1
+datasources:
+  - name: Cinema Loki
+    uid: cinema-loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    editable: false
+    jsonData:
+      maxLines: 1000
+      derivedFields:
+        - name: SkyWalking
+          matcherRegex: '"trace_id"\s*:\s*"([^"]+)"'
+          url: 'http://127.0.0.1:18080/layer/general/trace?traceId=$${__value.raw}'

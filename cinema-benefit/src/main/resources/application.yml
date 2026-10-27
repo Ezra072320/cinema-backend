@@ -1,0 +1,66 @@
+server:
+  port: ${SERVER_PORT:8087}
+  tomcat:
+    threads:
+      max: 160
+      min-spare: 16
+    accept-count: 100
+    max-connections: 2000
+spring:
+  application:
+    name: cinema-benefit
+  profiles:
+    default: dev
+  config:
+    import:
+      - classpath:cinema-common.yml
+      - optional:nacos:cinema-benefit.yml?group=CINEMA
+  datasource:
+    url: ${DB_URL:jdbc:mysql://127.0.0.1:3306/cinema_benefit?serverTimezone=Asia/Shanghai&useUnicode=true&characterEncoding=utf-8&connectTimeout=2000&socketTimeout=10000&rewriteBatchedStatements=true}
+    username: ${DB_USERNAME:cinema_benefit}
+    password: ${DB_PASSWORD:}
+  flyway:
+    locations: classpath:db/migration
+    # The startup tool bootstraps only undo_log before Seata wraps the DataSource.
+    baseline-on-migrate: true
+    baseline-version: 0
+  cloud:
+    nacos:
+      discovery:
+        enabled: ${NACOS_ENABLED:true}
+        server-addr: ${NACOS_ADDR:127.0.0.1:8848}
+        namespace: ${NACOS_NAMESPACE:}
+        username: ${NACOS_USERNAME:}
+        password: ${NACOS_PASSWORD:}
+      config:
+        enabled: ${NACOS_ENABLED:true}
+        server-addr: ${NACOS_ADDR:127.0.0.1:8848}
+        namespace: ${NACOS_NAMESPACE:}
+        username: ${NACOS_USERNAME:}
+        password: ${NACOS_PASSWORD:}
+cinema:
+  operations:
+    enabled: false
+  messaging:
+    endpoints: ${ROCKETMQ_ENDPOINTS:rocketmq-broker:8081}
+
+  benefit:
+    enabled: ${CINEMA_BENEFIT_ENABLED:false}
+seata:
+  enabled: ${SEATA_ENABLED:false}
+  application-id: cinema-benefit
+  tx-service-group: cinema_tx_group
+  enable-auto-data-source-proxy: true
+  data-source-proxy-mode: AT
+  registry:
+    type: file
+  config:
+    type: file
+  service:
+    vgroup-mapping:
+      cinema_tx_group: default
+    grouplist:
+      default: ${SEATA_SERVER:127.0.0.1:18091}
+  client:
+    rm:
+      report-success-enable: true

@@ -44,6 +44,7 @@ public class TradeController {
     private final JdbcTemplate jdbc;
     private final TradeQueryService queries;
     private final OperationJournal journal;
+    private final edu.czu.cinema.transactions.CouponCheckout couponCheckout;
 
     @GetMapping("/showing")
     public List<Long> showing(@RequestParam(defaultValue = "false") boolean bookable) {
@@ -94,6 +95,10 @@ public class TradeController {
             @RequestParam Long userId,
             @RequestBody OrderAddDTO dto,
             @RequestHeader("X-Operation-Id") String key) {
+        if(dto.couponId()!=null){
+            ContextHolder.set(new ContextHolder.Principal(userId,"AI用户","USER"));
+            try{return couponCheckout.create(userId,dto,key);}finally{ContextHolder.clear();}
+        }
         return journal.run(
                 key,
                 userId,

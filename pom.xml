@@ -22,12 +22,16 @@
         <hutool.version>5.8.39</hutool.version>
         <jwt.version>0.12.6</jwt.version>
         <springdoc.version>2.8.4</springdoc.version>
+        <knife4j.version>4.5.0</knife4j.version>
+        <mapstruct.version>1.6.3</mapstruct.version>
+        <fesod.version>2.1.0-incubating</fesod.version>
         <spring-ai.version>1.0.0</spring-ai.version>
         <aliyun-oss.version>3.18.1</aliyun-oss.version>
         <spring-cloud.version>2025.0.0</spring-cloud.version>
         <spring-cloud-alibaba.version>2025.0.0.0</spring-cloud-alibaba.version>
     </properties>
     <modules>
+        <module>cinema-framework</module>
         <module>cinema-api</module>
         <module>cinema-common</module>
         <module>cinema-identity</module>
@@ -35,6 +39,9 @@
         <module>cinema-trade</module>
         <module>cinema-ai</module>
         <module>cinema-gateway</module>
+        <module>cinema-notify</module>
+        <module>cinema-search</module>
+        <module>cinema-benefit</module>
         <module>cinema-verification</module>
     </modules>
     <dependencyManagement>

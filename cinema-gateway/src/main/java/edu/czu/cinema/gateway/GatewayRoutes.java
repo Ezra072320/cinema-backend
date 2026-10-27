@@ -21,8 +21,19 @@ public class GatewayRoutes {
             @Value("${CINEMA_IDENTITY_URI:lb://cinema-identity}") String identity,
             @Value("${CINEMA_CATALOG_URI:lb://cinema-catalog}") String catalog,
             @Value("${CINEMA_TRADE_URI:lb://cinema-trade}") String trade,
-            @Value("${CINEMA_AI_URI:lb://cinema-ai}") String ai) {
+            @Value("${CINEMA_AI_URI:lb://cinema-ai}") String ai,
+            @Value("${CINEMA_NOTIFY_URI:lb://cinema-notify}") String notify,
+            @Value("${CINEMA_NOTIFY_WS_URI:lb:ws://cinema-notify}") String notifySocket,
+            @Value("${CINEMA_SEARCH_URI:lb://cinema-search}") String search,
+            @Value("${CINEMA_BENEFIT_URI:lb://cinema-benefit}") String benefit) {
         return b.routes()
+                .route("benefit",r -> r.path("/api/benefit/**","/api/admin/benefit/**").filters(f -> httpFilters(f).circuitBreaker(c -> protect(c,"benefit"))).uri(benefit))
+                .route("search", r -> r.path("/api/search/**", "/api/admin/search/**")
+                        .filters(f -> httpFilters(f).circuitBreaker(c -> protect(c,"search"))).uri(search))
+                .route("notify-socket",r -> r.path("/api/notify/socket")
+                        .filters(GatewayRoutes::httpFilters).uri(notifySocket))
+                .route("notify",r -> r.path("/api/notify/**")
+                        .filters(f -> httpFilters(f).circuitBreaker(c -> protect(c,"notify"))).uri(notify))
                 .route(
                         "ai",
                         r ->
@@ -39,6 +50,7 @@ public class GatewayRoutes {
                                                         httpFilters(f)
                                                                 .circuitBreaker(
                                                                         c -> protect(c, "booking")))
+                                        .metadata("response-timeout", 20000)
                                         .uri(trade))
                 .route(
                         "trade",
@@ -54,6 +66,7 @@ public class GatewayRoutes {
                                                 "/api/hall/**",
                                                 "/api/schedule/**",
                                                 "/api/ticket/**",
+                                                "/api/admin/governance/**",
                                                 "/api/admin/order/**",
                                                 "/api/admin/hall/**",
                                                 "/api/admin/schedule/**",

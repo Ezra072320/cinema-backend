@@ -33,6 +33,7 @@ def main():
             encoded = bcrypt.hashpw(password.encode(), bcrypt.gensalt(rounds=12)).decode()
             cursor.execute('INSERT INTO admin(name,password,status,create_time) VALUES(%s,%s,1,NOW())',
                            (args.name, encoded))
+            cursor.execute("INSERT INTO admin_role_assignment(admin_id,role_code) VALUES(%s,'OWNER')", (cursor.lastrowid,))
         connection.commit()
         print('Administrator created. Sign in through the gateway.')
     except Exception:

@@ -1,0 +1,13 @@
+# Combine messaging + jobs + search; this adds no second middleware instance.
+services:
+  search:
+    environment:
+      CINEMA_JOBS_MODE: xxl
+      XXL_JOB_ADMIN_ADDRESSES: http://xxl-job:8080/xxl-job-admin
+      XXL_JOB_ACCESS_TOKEN: ${XXL_JOB_ACCESS_TOKEN:?Run init-jobs.py}
+      XXL_JOB_EXECUTOR_ADDRESS: http://search:9999/
+      XXL_JOB_LOG_PATH: /app/job-logs/search
+    volumes: [job-executor-logs:/app/job-logs]
+    depends_on:
+      xxl-job: {condition: service_healthy}
+      job-volume-init: {condition: service_completed_successfully}

@@ -93,11 +93,29 @@ class AiToolTest {
     @Test
     void allToolsRegisterAndIdentityIsNotPartOfModelSchema() {
         var callbacks = ToolCallbacks.from(tools);
-        assertThat(callbacks).hasSize(22);
+        assertThat(callbacks).hasSize(24);
+        assertThat(java.util.Arrays.stream(callbacks).map(c -> c.getToolDefinition().name()))
+                .contains("myCoupons", "prepareBookingWithCoupon");
         for (var callback : callbacks) {
             String schema = callback.getToolDefinition().inputSchema();
             assertThat(schema).doesNotContain("\"userId\"", "\"chatId\"", "\"context\"");
         }
+    }
+
+    @Test
+    void couponToolsUseTrustedIdentityAndOnlyPrepareAConfirmation() {
+        var benefits=mock(BenefitClient.class);
+        org.springframework.test.util.ReflectionTestUtils.setField(tools,"benefits",benefits);
+        when(benefits.coupons(7L)).thenReturn(List.of());
+        assertThat(tools.myCoupons(context()).success()).isTrue();
+        assertThat(tools.myCoupons(new ToolContext(Map.of("userId",99L))).success()).isFalse();
+        verify(benefits).coupons(7L);
+        verify(benefits,never()).coupons(99L);
+        tools.prepareBookingWithCoupon(1L,List.of(2L),3L,context());
+        var command=org.mockito.ArgumentCaptor.forClass(edu.czu.cinema.ai.dto.AiActionCommand.class);
+        verify(actions).prepare(eq(new AiIdentity(7L,"chat")),command.capture());
+        assertThat(command.getValue().couponId()).isEqualTo(3L);
+        verifyNoInteractions(orders);
     }
 
     // ---------- 选座回归：2排2座明明可售，不能用分页列表猜 ----------

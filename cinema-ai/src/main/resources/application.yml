@@ -47,3 +47,12 @@ spring:
       embedding:
         options:
           model: text-embedding-v3
+
+---
+cinema:
+  jobs:
+    mode: ${CINEMA_JOBS_MODE:local}
+    admin-addresses: ${XXL_JOB_ADMIN_ADDRESSES:http://xxl-job:8080/xxl-job-admin}
+    access-token: ${XXL_JOB_ACCESS_TOKEN:}
+    executor-address: ${XXL_JOB_EXECUTOR_ADDRESS:}
+    log-path: ${XXL_JOB_LOG_PATH:${java.io.tmpdir}/cinema-job-logs}

@@ -29,6 +29,7 @@ public class MainlandMovieWriter {
     private final MovieMapper movieMapper;
     private final PersonMapper personMapper;
     private final MovieCrewMapper crewMapper;
+    private final edu.czu.cinema.domain.movie.search.MovieProjectionWriter projection;
 
     public record Written(Long movieId, boolean created, List<String> missingFields) {}
 
@@ -98,6 +99,7 @@ public class MainlandMovieWriter {
             }
             movieMapper.updateById(movie);
         }
+        projection.changed(movieId);
         List<String> missing = new ArrayList<>(movie.getMissingFields());
         missing.addAll(fetched.warnings());
         return new Written(movieId, true, List.copyOf(missing));
@@ -146,6 +148,7 @@ public class MainlandMovieWriter {
             movie.setUpdateTime(java.time.LocalDateTime.now());
             movieMapper.updateById(movie);
         }
+        if (changed) projection.changed(movieId);
         return new Written(movieId, false, movie.getMissingFields());
     }
 

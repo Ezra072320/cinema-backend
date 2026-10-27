@@ -1,0 +1,5 @@
+# The named context contains an existing Maven target directory. BuildKit reads
+# the selected executable JAR directly; no duplicate staging directory is made.
+FROM cinema/runtime-base:local
+ARG APP_JAR
+COPY --from=packaged --chown=cinema:cinema /${APP_JAR} /app/app.jar

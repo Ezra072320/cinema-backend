@@ -60,11 +60,12 @@ public class MaoyanClient {
     }
 
     static Picture picture(byte[] bytes) {
-            if (bytes == null || bytes.length < 12 || bytes.length > 10 * 1024 * 1024) throw new IllegalStateException("图片内容为空或超过 10MB");
-            if ((bytes[0] & 255) == 255 && (bytes[1] & 255) == 216) return new Picture(bytes,"image/jpeg","jpg");
-            if ((bytes[0] & 255) == 137 && bytes[1] == 80 && bytes[2] == 78 && bytes[3] == 71) return new Picture(bytes,"image/png","png");
-            if (bytes[0] == 'R' && bytes[1] == 'I' && bytes[8] == 'W' && bytes[9] == 'E') return new Picture(bytes,"image/webp","webp");
-            throw new IllegalStateException("图床没有返回有效图片，未上传 OSS");
+        try {
+            var type = edu.czu.cinema.file.ImageContent.requireSupported(bytes);
+            return new Picture(bytes, type.contentType(), type.extension().substring(1));
+        } catch (IllegalArgumentException e) {
+            throw new IllegalStateException("图床没有返回有效图片，未上传 OSS", e);
+        }
     }
 
     /** 大陆待映片单（只拉 comingList/moreComingList；热映榜全是已上映影片，insert-only 同步用不到）。 */

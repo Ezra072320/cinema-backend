@@ -24,6 +24,7 @@ import java.util.List;
 public class AdminServiceImpl implements AdminService {
 
     private final AdminMapper adminMapper;
+    private final edu.czu.cinema.domain.admin.access.AdminRbacService rbac;
 
     @Override
     public Admin login(String name, String password) {
@@ -68,6 +69,7 @@ public class AdminServiceImpl implements AdminService {
         a.setStatus(1);
         a.setPic("https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png");
         adminMapper.insert(a);
+        rbac.defaultRole(a.getId());
         return a;
     }
 
@@ -126,6 +128,7 @@ public boolean modifyStatus(String name, int status) {
         if (others == null || others == 0) {
             throw new BusinessException("至少保留一名启用管理员");
         }
+        rbac.requireOtherOwner(target);
     }
     // 只 SET status：不过实体 updateById，避免把被篡改的其他字段一并写库
     return adminMapper.update(null, new LambdaUpdateWrapper<Admin>()
@@ -145,6 +148,7 @@ public boolean modifyStatus(String name, int status) {
             Long others = adminMapper.selectCount(new LambdaQueryWrapper<Admin>()
                     .eq(Admin::getStatus, 1).ne(Admin::getId, id));
             if (others == null || others == 0) throw new BusinessException("至少保留一名启用管理员");
+            rbac.requireOtherOwner(target);
         }
         return adminMapper.deleteById(id) > 0;
     }

@@ -1,0 +1,5 @@
+# The combined low-memory group runs five application targets, without MQ/Seata/Search.
+services:
+  prometheus:
+    volumes:
+      - ./deploy/local/observe/prometheus-lite.yml:/etc/prometheus/prometheus.yml:ro

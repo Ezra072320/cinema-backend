@@ -9,6 +9,16 @@
     <artifactId>cinema-gateway</artifactId>
     <dependencies>
         <dependency>
+            <groupId>org.apache.skywalking</groupId>
+            <artifactId>apm-toolkit-webflux-6.x</artifactId>
+            <version>9.8.0</version>
+        </dependency>
+        <dependency>
+            <groupId>edu.czu.cinema</groupId>
+            <artifactId>cinema-starter-observe</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
             <groupId>edu.czu.cinema</groupId>
             <artifactId>cinema-api</artifactId>
             <version>${project.version}</version>

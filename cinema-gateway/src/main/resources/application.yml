@@ -1,5 +1,12 @@
 server:
   port: ${SERVER_PORT:8080}
+cinema:
+  metrics:
+    enabled: ${CINEMA_METRICS_ENABLED:false}
+    key: ${CINEMA_METRICS_KEY:}
+  docs:
+    enabled: ${API_DOCS_ENABLED:false}
+    services: ${API_DOCS_SERVICES:identity,catalog,trade,ai}
 spring:
   application:
     name: cinema-gateway
@@ -67,6 +74,9 @@ spring:
 resilience4j:
   timelimiter:
     instances:
+      booking:
+        # Coupon AT transactions allow 15s; also budget for cold clients.
+        timeoutDuration: 20s
       upload:
         timeoutDuration: 30s
     configs:
@@ -81,6 +91,12 @@ resilience4j:
         waitDurationInOpenState: 10s
         permittedNumberOfCallsInHalfOpenState: 5
 management:
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
   endpoints:
     web:
       exposure:

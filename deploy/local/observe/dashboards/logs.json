@@ -1,0 +1,112 @@
+{
+  "uid": "cinema-local-logs",
+  "title": "Cinema 本地业务日志",
+  "description": "关联 ID 为日志字段，不建立高基数索引。SkyWalking 链接在 observability 组可用。",
+  "schemaVersion": 42,
+  "version": 1,
+  "editable": false,
+  "timezone": "Asia/Shanghai",
+  "refresh": "10s",
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
+  "tags": [
+    "cinema",
+    "logs"
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "service",
+        "label": "应用",
+        "type": "query",
+        "datasource": {
+          "type": "loki",
+          "uid": "cinema-loki"
+        },
+        "query": "label_values({job=\"cinema\"}, service)",
+        "refresh": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      },
+      {
+        "name": "trace_id",
+        "label": "trace ID / 请求号",
+        "type": "textbox",
+        "current": {
+          "text": "",
+          "value": ""
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "logs",
+      "title": "业务日志（可按 trace ID 或请求号筛选）",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 18
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "cinema-loki"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{job=\"cinema\",service=~\"$service\"} |= \"$trace_id\"",
+          "queryType": "range",
+          "direction": "backward"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none"
+      }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "日志写入速率",
+      "gridPos": {
+        "x": 0,
+        "y": 18,
+        "w": 24,
+        "h": 7
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "cinema-loki"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (service,level) (rate({job=\"cinema\",service=~\"$service\"}[2m]))",
+          "legendFormat": "{{service}} {{level}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      }
+    }
+  ]
+}

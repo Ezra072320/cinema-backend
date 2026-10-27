@@ -1,0 +1,24 @@
+# Add to base + messaging + transactions + jobs. Dashboard is a local observation tool.
+services:
+  sentinel-dashboard:
+    image: cinema/sentinel-dashboard:local
+    build: {context: ./deploy/local/sentinel}
+    profiles: [governance]
+    restart: unless-stopped
+    mem_limit: 640m
+    environment:
+      AUTH_USERNAME: cinema
+      AUTH_PASSWORD: ${SENTINEL_DASHBOARD_PASSWORD:?Run init-governance.py}
+    ports: ['127.0.0.1:18880:8080']
+    networks: [cinema]
+    healthcheck:
+      test: [CMD, bash, -ec, 'exec 3<>/dev/tcp/127.0.0.1/8080']
+      interval: 10s
+      timeout: 3s
+      start_period: 45s
+      retries: 15
+  trade:
+    environment:
+      CINEMA_GOVERNANCE_ENABLED: 'true'
+      SENTINEL_DASHBOARD: sentinel-dashboard:8080
+      # Let Sentinel advertise its container IP; dashboard 1.8.9 rejects DNS names.

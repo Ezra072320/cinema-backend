@@ -26,6 +26,10 @@ public class OrderVO {
     private Long scheduleId;
     private java.math.BigDecimal totalAmount;
     private Integer status;
+    private Long couponId;
+    private java.math.BigDecimal originalAmount;
+    private java.math.BigDecimal discountAmount;
+    private String transactionState;
     private boolean reviewed;
     private boolean canReview;
     private String reviewReason;

@@ -50,6 +50,7 @@ public class MaoyanImportServiceImpl {
     private final MovieAltTitleMapper altTitleMapper;
     private final TypeMapper typeMapper;
     private final MovieTypeBindMapper bindMapper;
+    private final edu.czu.cinema.domain.movie.search.MovieProjectionWriter projection;
 
     /**
      * 入口: 把快照入库. 已存在则覆盖主表 + 重建 satellite.
@@ -108,6 +109,7 @@ public class MaoyanImportServiceImpl {
         // 9. aka -> movie_alt_title
         upsertAltTitles(movieId, s.aka());
 
+        projection.changed(movieId);
         log.info("[maoyan-import] upserted maoyanId={} title={} -> movieId={}", s.id(), s.nm(), movieId);
         return movieId;
     }
@@ -151,6 +153,7 @@ public class MaoyanImportServiceImpl {
         }
         m.setUpdateTime(LocalDateTime.now());
         movieMapper.updateById(m);
+        projection.changed(m.getId());
     }
 
     /* ====================== helpers ====================== */

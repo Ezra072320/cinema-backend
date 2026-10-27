@@ -4,6 +4,9 @@ x-business: &business
   networks: [cinema]
   environment: &business-env
     SERVER_PORT: 8080
+    # Local learning groups share the same JVM budget as the tracing group.
+    # Otherwise each 1 GiB container inherits the image's 70% heap allowance.
+    JAVA_TOOL_OPTIONS: '-Xms96m -Xmx256m -XX:MaxDirectMemorySize=64m -XX:ActiveProcessorCount=2 -XX:+ExitOnOutOfMemoryError -Duser.timezone=Asia/Shanghai'
     JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET}
     INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:?Set INTERNAL_SERVICE_KEY}
     REDIS_HOST: redis
@@ -12,6 +15,7 @@ x-business: &business
     NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
     NACOS_PASSWORD: ${NACOS_PASSWORD:?Set NACOS_PASSWORD}
     CAPTCHA_REQUIRED: ${CAPTCHA_REQUIRED:-true}
+    API_DOCS_ENABLED: ${API_DOCS_ENABLED:-false}
     CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:${WEB_PORT:-8088},http://127.0.0.1:${WEB_PORT:-8088},http://localhost:5173,http://127.0.0.1:5173}
     ALIYUN_OSS_AK: ${ALIYUN_OSS_AK:-}
     ALIYUN_OSS_SK: ${ALIYUN_OSS_SK:-}
@@ -142,6 +146,7 @@ services:
     build: {context: ., args: {SERVICE: cinema-gateway}}
     environment:
       <<: *business-env
+      API_DOCS_SERVICES: ${API_DOCS_SERVICES:-identity,catalog,trade,ai}
     depends_on:
       redis: {condition: service_healthy}
       nacos-init: {condition: service_completed_successfully}

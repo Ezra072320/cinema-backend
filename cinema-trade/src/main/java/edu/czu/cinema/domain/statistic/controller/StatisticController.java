@@ -21,6 +21,7 @@ import java.time.LocalDate;
 public class StatisticController {
 
     private final RevenueService revenue;
+    private final edu.czu.cinema.domain.statistic.export.RevenueWorkbook workbook;
 
     @Operation(summary = "管理后台首页统计数据")
     @GetMapping("/getAll")
@@ -37,6 +38,23 @@ public class StatisticController {
             @RequestParam(defaultValue = "day") String granularity) {
         SecurityUtils.requireAdminId();
         return R.ok(revenue.report(startDate,endDate,granularity));
+    }
+
+    @Operation(summary = "导出同口径营收工作簿(最多366天)")
+    @GetMapping("/revenue/export")
+    public ResponseEntity<byte[]> export(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(defaultValue = "day") String granularity) {
+        SecurityUtils.requireAdminId();
+        var report = revenue.report(startDate,endDate,granularity);
+        byte[] content = workbook.render(report);
+        String filename = "revenue_"+report.startDate()+"_"+report.endDate()+".xlsx";
+        return ResponseEntity.ok()
+                .header("Content-Disposition", "attachment; filename=\""+filename+"\"")
+                .header("Cache-Control", "no-store")
+                .contentType(org.springframework.http.MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .contentLength(content.length).body(content);
     }
 
     @ExceptionHandler(BusinessException.class)

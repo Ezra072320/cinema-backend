@@ -8,10 +8,56 @@
     </parent>
     <artifactId>cinema-ai</artifactId>
     <dependencies>
+        <dependency><groupId>edu.czu.cinema</groupId><artifactId>cinema-starter-job</artifactId><version>${project.version}</version></dependency>
         <dependency>
             <groupId>edu.czu.cinema</groupId>
-            <artifactId>cinema-common</artifactId>
+            <artifactId>cinema-api</artifactId>
             <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>edu.czu.cinema</groupId>
+            <artifactId>cinema-starter-web</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>edu.czu.cinema</groupId>
+            <artifactId>cinema-starter-security</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>edu.czu.cinema</groupId>
+            <artifactId>cinema-starter-data</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>edu.czu.cinema</groupId>
+            <artifactId>cinema-starter-redis</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>edu.czu.cinema</groupId>
+            <artifactId>cinema-starter-remote</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>edu.czu.cinema</groupId>
+            <artifactId>cinema-starter-observe</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <version>1.18.38</version>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>cn.hutool</groupId>
+            <artifactId>hutool-all</artifactId>
+            <version>${hutool.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-aop</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.ai</groupId>

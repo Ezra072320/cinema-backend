@@ -1,0 +1,74 @@
+# One instance of each observer; combine base + messaging + transactions.
+x-metrics-env: &metrics-env
+  CINEMA_METRICS_ENABLED: 'true'
+  CINEMA_METRICS_KEY: ${CINEMA_METRICS_KEY:?Run tools/init-metrics.py}
+services:
+  identity:
+    environment: *metrics-env
+  catalog:
+    environment: *metrics-env
+  trade:
+    environment: *metrics-env
+  ai:
+    environment: *metrics-env
+  notify:
+    environment: *metrics-env
+  benefit:
+    environment: *metrics-env
+  gateway:
+    environment: *metrics-env
+  prometheus:
+    image: prom/prometheus:v3.15.1@sha256:fa3302279710be2f21a8301ec17a8b4f2301fd829bd113839b3b6b02b6f191a2
+    profiles: [metrics]
+    restart: unless-stopped
+    mem_limit: 384m
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=24h
+      - --storage.tsdb.retention.size=128MB
+    ports: ['127.0.0.1:19090:9090']
+    volumes:
+      - ./deploy/local/observe/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./.work/observe/metrics-key:/run/secrets/cinema-metrics-key:ro
+      - prometheus-data:/prometheus
+    networks: [cinema]
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, http://127.0.0.1:9090/-/ready]
+      interval: 10s
+      timeout: 3s
+      start_period: 20s
+      retries: 12
+  grafana:
+    image: grafana/grafana:13.2.4@sha256:dbbc38ea21103cefb50396340cd88afec779c7e070b0a7bf5a75b4ce46651d3f
+    profiles: [metrics]
+    restart: unless-stopped
+    mem_limit: 384m
+    environment:
+      GF_SECURITY_ADMIN_USER: cinema
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Run tools/init-metrics.py}
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+      GF_AUTH_ANONYMOUS_ENABLED: 'false'
+      GF_ANALYTICS_REPORTING_ENABLED: 'false'
+      GF_ANALYTICS_CHECK_FOR_UPDATES: 'false'
+      GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: 'false'
+      GF_PLUGINS_PREINSTALL_DISABLED: 'true'
+      GF_PLUGINS_PREINSTALL_AUTO_UPDATE: 'false'
+      GF_DATE_FORMATS_DEFAULT_TIMEZONE: Asia/Shanghai
+    ports: ['127.0.0.1:13000:3000']
+    volumes:
+      - ./deploy/local/observe/provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/local/observe/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    networks: [cinema]
+    depends_on:
+      prometheus: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, http://127.0.0.1:3000/api/health]
+      interval: 10s
+      timeout: 3s
+      start_period: 30s
+      retries: 12
+volumes:
+  prometheus-data: {}
+  grafana-data: {}

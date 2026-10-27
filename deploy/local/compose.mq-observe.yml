@@ -1,0 +1,25 @@
+# Apply after tracing and logs: the asynchronous experiment keeps MQ/Notify,
+# pauses AI/Benefit/Seata/Search, and uses the existing local singleton volumes.
+services:
+  catalog:
+    environment:
+      CINEMA_MESSAGING_ENABLED: 'true'
+      # Existing publishers use generated event UUIDs as message keys.
+      SW_PLUGIN_ROCKETMQCLIENT_COLLECT_MESSAGE_KEYS: 'true'
+    depends_on:
+      rocketmq-init: {condition: service_completed_successfully}
+  trade:
+    environment:
+      CINEMA_MESSAGING_ENABLED: 'true'
+      SW_PLUGIN_ROCKETMQCLIENT_COLLECT_MESSAGE_KEYS: 'true'
+      SEATA_ENABLED: 'false'
+    depends_on:
+      rocketmq-init: {condition: service_completed_successfully}
+  prometheus:
+    volumes:
+      - ./deploy/local/observe/prometheus-mq-lite.yml:/etc/prometheus/prometheus.yml:ro
+  skywalking-oap:
+    environment:
+      # Keep the built-in searchable fields and add generated event/message IDs.
+      # Message bodies, business arguments and credentials are never added here.
+      SW_SEARCHABLE_TAG_KEYS: http.method,http.status_code,rpc.status_code,db.type,db.instance,mq.queue,mq.topic,mq.broker,mq.message.keys,mq.message.id

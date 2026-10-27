@@ -1,0 +1,17 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  scrape_timeout: 5s
+scrape_configs:
+  - job_name: cinema
+    metrics_path: /actuator/prometheus
+    http_headers:
+      X-Metrics-Key:
+        files: [/run/secrets/cinema-metrics-key]
+    static_configs:
+      - targets: [gateway:8080, identity:8080, catalog:8080, trade:8080, ai:8080, notify:8080, benefit:8080]
+    relabel_configs:
+      - source_labels: [__address__]
+        regex: '([^:]+):.*'
+        target_label: service
+        replacement: '$1'

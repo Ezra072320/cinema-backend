@@ -39,7 +39,7 @@ class MainlandMovieLiveTest {
     @Import({JsonConfig.class, MybatisPlusConfig.class, MaoyanClient.class, MainlandMovieFetcher.class,
             MainlandMovieWriter.class, MaoyanImportServiceImpl.class, MovieSyncService.class,
             MovieServiceImpl.class, MovieMediaStore.class,
-            edu.czu.cinema.common.util.AliOssUtil.class,MovieReleaseSource.class,TmdbClient.class,TmdbMovieService.class})
+            edu.czu.cinema.file.OssImageFiles.class,MovieReleaseSource.class,TmdbClient.class,TmdbMovieService.class})
     static class LiveApp {}
 
     @Autowired MovieSyncService sync;

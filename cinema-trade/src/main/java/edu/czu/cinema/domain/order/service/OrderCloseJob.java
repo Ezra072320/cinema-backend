@@ -37,13 +37,13 @@ public class OrderCloseJob {
     private final OrderService orderService;
     private final TicketService ticketService;
 
-    @Scheduled(fixedDelay = 60_000, initialDelay = 60_000)
     public void sweep() {
-        closeExpiredOrders();
-        reconcileOrphanTickets();
+        runSweep();
     }
 
-    private void closeExpiredOrders() {
+    public record SweepResult(int closed,int reconciled,int failed) {}
+    public SweepResult runSweep(){int[] counts=new int[3];closeExpiredOrders(counts);reconcileOrphanTickets(counts);return new SweepResult(counts[0],counts[1],counts[2]);}
+    private void closeExpiredOrders(int[] counts) {
         List<Order> expired = orderMapper.selectList(new LambdaQueryWrapper<Order>()
                 .select(Order::getId)
                 .eq(Order::getStatus, OrderStatus.PENDING.getCode())
@@ -56,9 +56,10 @@ public class OrderCloseJob {
         for (Order o : expired) {
             try {
                 if (orderService.closeIfExpired(o.getId())) {
-                    closed += 1;
+                    closed += 1;counts[0]++;
                 }
             } catch (Exception e) {
+                counts[2]++;
                 // 单条失败不阻塞整轮. 该单仍是 status=1, 下一轮扫描会重试关闭, 只告警不吞.
                 log.warn("[order-close-job] 关闭订单 id={} 失败(下一轮重试): {}", o.getId(), e.getMessage());
             }
@@ -72,7 +73,7 @@ public class OrderCloseJob {
      * 孤儿票对账: 订单已关/已退, 票却还锁在它名下(应已释放).
      * 用 EXISTS 子查询一次圈出脏数据, 不扫全表; LIMIT 防极端存量时长事务.
      */
-    private void reconcileOrphanTickets() {
+    private void reconcileOrphanTickets(int[] counts) {
         List<Order> suspects = orderMapper.selectList(new LambdaQueryWrapper<Order>()
                 .select(Order::getId, Order::getNumber)
                 .in(Order::getStatus, OrderStatus.REFUNDED.getCode(), OrderStatus.CLOSED.getCode())
@@ -81,10 +82,11 @@ public class OrderCloseJob {
                 .last("LIMIT 200"));
         for (Order o : suspects) {
             try {
-                ticketService.releaseTickets(o.getId());
+                ticketService.releaseTickets(o.getId());counts[1]++;
                 log.warn("[order-close-job] 对账修复孤儿票: 订单 id={} number={} 已终态但票仍占用, 已补释放",
                         o.getId(), o.getNumber());
             } catch (Exception e) {
+                counts[2]++;
                 log.warn("[order-close-job] 对账修复订单 id={} 失败(下一轮重试): {}", o.getId(), e.getMessage());
             }
         }

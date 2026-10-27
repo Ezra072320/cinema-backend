@@ -1,0 +1,113 @@
+# Combine with the root compose.yml; this keeps the existing project, network and data volumes.
+services:
+  rocketmq-volume-init:
+    image: apache/rocketmq:5.3.4
+    profiles: [messaging]
+    restart: 'no'
+    user: '0:0'
+    entrypoint: [bash, /init/prepare-volumes.sh]
+    mem_limit: 32m
+    networks: [cinema]
+    volumes:
+      - ./deploy/local/rocketmq/prepare-volumes.sh:/init/prepare-volumes.sh:ro
+      - rocketmq-store:/store
+      - rocketmq-logs:/logs
+  rocketmq-nameserver:
+    image: apache/rocketmq:5.3.4
+    profiles: [messaging]
+    restart: unless-stopped
+    command: [sh, mqnamesrv]
+    environment:
+      JAVA_OPT_EXT: '-Xms128m -Xmx128m -XX:MaxDirectMemorySize=64m'
+    mem_limit: 320m
+    networks: [cinema]
+    healthcheck:
+      test: [CMD, bash, -ec, 'exec 3<>/dev/tcp/127.0.0.1/9876']
+      interval: 10s
+      timeout: 3s
+      start_period: 30s
+      retries: 12
+  rocketmq-broker:
+    image: apache/rocketmq:5.3.4
+    profiles: [messaging]
+    restart: unless-stopped
+    command: [sh, mqbroker, --enable-proxy, -c, /home/rocketmq/broker.conf, -pc, /home/rocketmq/rmq-proxy.json]
+    environment:
+      NAMESRV_ADDR: rocketmq-nameserver:9876
+      JAVA_OPT_EXT: '-Xms384m -Xmx384m -Xss512k -XX:MaxDirectMemorySize=256m -XX:ActiveProcessorCount=2'
+    mem_limit: 1400m
+    ports: ['127.0.0.1:18081:8081']
+    volumes:
+      - ./deploy/local/rocketmq/broker.conf:/home/rocketmq/broker.conf:ro
+      - ./deploy/local/rocketmq/rmq-proxy.json:/home/rocketmq/rmq-proxy.json:ro
+      - rocketmq-store:/home/rocketmq/store
+      - rocketmq-logs:/home/rocketmq/logs
+    networks: [cinema]
+    depends_on:
+      rocketmq-nameserver: {condition: service_healthy}
+      rocketmq-volume-init: {condition: service_completed_successfully}
+    healthcheck:
+      test: [CMD, bash, -ec, 'exec 3<>/dev/tcp/127.0.0.1/8081']
+      interval: 10s
+      timeout: 3s
+      start_period: 45s
+      retries: 18
+  rocketmq-init:
+    image: apache/rocketmq:5.3.4
+    profiles: [messaging]
+    restart: 'no'
+    entrypoint: [bash, /init/topics.sh]
+    environment:
+      NAMESRV_ADDR: rocketmq-nameserver:9876
+      JAVA_OPT_EXT: '-Xms64m -Xmx128m'
+    mem_limit: 256m
+    volumes:
+      - ./deploy/local/rocketmq/topics.sh:/init/topics.sh:ro
+      - ./deploy/local/rocketmq/InitializeConsumerOffsets.java:/init/InitializeConsumerOffsets.java:ro
+    networks: [cinema]
+    depends_on:
+      rocketmq-broker: {condition: service_healthy}
+  trade:
+    depends_on:
+      rocketmq-init: {condition: service_completed_successfully}
+    environment:
+      CINEMA_MESSAGING_ENABLED: 'true'
+      ROCKETMQ_ENDPOINTS: rocketmq-broker:8081
+  notify:
+    image: cinema/notify:local
+    profiles: [messaging]
+    build: {context: ., args: {SERVICE: cinema-notify}}
+    restart: unless-stopped
+    environment:
+      API_DOCS_ENABLED: ${API_DOCS_ENABLED:-false}
+      SERVER_PORT: 8080
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET}
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:?Set INTERNAL_SERVICE_KEY}
+      REDIS_HOST: redis
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD}
+      NACOS_ADDR: nacos:8848
+      NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
+      NACOS_PASSWORD: ${NACOS_PASSWORD:?Set NACOS_PASSWORD}
+      DB_USERNAME: cinema_notify
+      DB_PASSWORD: ${NOTIFY_DB_PASSWORD:?Run python tools/init-domain.py notify first}
+      DB_URL: jdbc:mysql://mysql:3306/cinema_notify?serverTimezone=Asia/Shanghai&connectTimeout=2000&socketTimeout=10000
+      DB_POOL_SIZE: 6
+      ROCKETMQ_ENDPOINTS: rocketmq-broker:8081
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:${WEB_PORT:-8088},http://127.0.0.1:${WEB_PORT:-8088},http://localhost:5173,http://127.0.0.1:5173}
+      JAVA_TOOL_OPTIONS: '-Xms96m -Xmx256m -XX:MaxDirectMemorySize=64m -XX:ActiveProcessorCount=2 -Duser.timezone=Asia/Shanghai'
+    mem_limit: 640m
+    networks: [cinema]
+    depends_on:
+      mysql: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      nacos-init: {condition: service_completed_successfully}
+      rocketmq-init: {condition: service_completed_successfully}
+    healthcheck:
+      test: [CMD-SHELL, 'curl -fsS http://localhost:8080/actuator/health/readiness || exit 1']
+      interval: 10s
+      timeout: 3s
+      start_period: 90s
+      retries: 12
+volumes:
+  rocketmq-store: {}
+  rocketmq-logs: {}

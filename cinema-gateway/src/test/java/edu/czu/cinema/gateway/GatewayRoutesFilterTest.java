@@ -27,6 +27,19 @@ import reactor.core.publisher.Mono;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 class GatewayRoutesFilterTest {
+    @Test void couponCheckoutBudgetsCoverTheFifteenSecondGlobalTransaction() {
+        try (var context = context()) {
+            var exchange = MockServerWebExchange.from(MockServerHttpRequest.post("/api/user/createOrder"));
+            var booking = routes(context).stream().filter(r -> Boolean.TRUE.equals(Mono.from(r.getPredicate().apply(exchange)).block())).findFirst().orElseThrow();
+            assertThat(booking.getId()).isEqualTo("booking");
+            long responseMillis = ((Number) booking.getMetadata().get("response-timeout")).longValue();
+            var yaml = new org.springframework.beans.factory.config.YamlPropertiesFactoryBean();
+            yaml.setResources(new org.springframework.core.io.ClassPathResource("application.yml"));
+            var deadline = org.springframework.boot.convert.DurationStyle.detectAndParse(yaml.getObject().getProperty("resilience4j.timelimiter.instances.booking.timeoutDuration"));
+            assertThat(responseMillis).isGreaterThan(15000);
+            assertThat(deadline.toMillis()).isEqualTo(responseMillis);
+        }
+    }
     private GenericApplicationContext context() {
         var context = new GenericApplicationContext();
         context.registerBean(PathRoutePredicateFactory.class);
@@ -63,7 +76,9 @@ class GatewayRoutesFilterTest {
                         "http://identity:8080",
                         "http://catalog:8080",
                         "http://trade:8080",
-                        "http://ai:8080")
+                        "http://ai:8080",
+                        "http://notify:8080",
+                        "ws://notify:8080", "http://search:8080", "http://benefit:8080")
                 .getRoutes()
                 .collectList()
                 .block();
@@ -93,7 +108,7 @@ class GatewayRoutesFilterTest {
     void everyJavaRoutePreservesHostAndDeduplicatesGatewayAndServiceCorsHeaders() {
         try (var context = context()) {
             var routes = routes(context);
-            assertThat(routes).hasSize(6);
+            assertThat(routes).hasSize(10);
             for (var route : routes) {
                 var exchange =
                         MockServerWebExchange.from(

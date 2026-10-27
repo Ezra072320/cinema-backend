@@ -14,21 +14,22 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 class StatisticControllerTest {
     RevenueService service = mock(RevenueService.class);
+    edu.czu.cinema.domain.statistic.export.RevenueWorkbook workbook = mock(edu.czu.cinema.domain.statistic.export.RevenueWorkbook.class);
     MockMvc mvc;
     @BeforeEach void setup() {
         ContextHolder.clear();
-        mvc = MockMvcBuilders.standaloneSetup(new StatisticController(service))
+        mvc = MockMvcBuilders.standaloneSetup(new StatisticController(service, workbook))
                 .setControllerAdvice(new GlobalExceptionHandler()).build();
     }
     @AfterEach void clean() { ContextHolder.clear(); }
     @Test void anonymousAndUsersCannotReadEitherStatisticsEndpoint() throws Exception {
-        for (String path : new String[]{"/api/statistic/getAll","/api/statistic/revenue"}) {
+        for (String path : new String[]{"/api/statistic/getAll","/api/statistic/revenue","/api/statistic/revenue/export"}) {
             ContextHolder.clear();
             mvc.perform(get(path)).andExpect(status().isUnauthorized());
             ContextHolder.set(new ContextHolder.Principal(1L,"user","USER"));
             mvc.perform(get(path)).andExpect(status().isForbidden());
         }
-        verifyNoInteractions(service);
+        verifyNoInteractions(service,workbook);
     }
     @Test void adminDatesAndGranularityAreBoundToOrdinaryBusinessEndpoint() throws Exception {
         ContextHolder.set(new ContextHolder.Principal(1L,"admin","ADMIN"));
@@ -40,5 +41,27 @@ class StatisticControllerTest {
         ContextHolder.set(new ContextHolder.Principal(1L,"admin","ADMIN"));
         mvc.perform(get("/api/statistic/revenue").param("startDate","not-a-date")).andExpect(jsonPath("$.code").value(0));
         verifyNoInteractions(service);
+    }
+    @Test void workbookResponseUsesValidatedReportRangeAndIsNotCached() throws Exception {
+        ContextHolder.set(new ContextHolder.Principal(1L,"admin","ADMIN"));
+        var report = mock(edu.czu.cinema.domain.statistic.dto.RevenueReport.class);
+        when(report.startDate()).thenReturn(LocalDate.of(2026,10,1));
+        when(report.endDate()).thenReturn(LocalDate.of(2026,10,2));
+        when(service.report(null,null,"day")).thenReturn(report);
+        when(workbook.render(report)).thenReturn(new byte[]{80,75,3,4});
+        mvc.perform(get("/api/statistic/revenue/export"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control","no-store"))
+                .andExpect(header().string("Content-Disposition","attachment; filename=\"revenue_2026-10-01_2026-10-02.xlsx\""))
+                .andExpect(content().contentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .andExpect(content().bytes(new byte[]{80,75,3,4}));
+    }
+    @Test void invalidRangeReturnsBusinessJsonWithoutRenderingWorkbook() throws Exception {
+        ContextHolder.set(new ContextHolder.Principal(1L,"admin","ADMIN"));
+        when(service.report(any(),any(),any())).thenThrow(new edu.czu.cinema.common.exception.BusinessException(
+                edu.czu.cinema.common.api.ResultCode.BAD_REQUEST,"日期范围无效"));
+        mvc.perform(get("/api/statistic/revenue/export"))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.msg").value("日期范围无效"));
+        verifyNoInteractions(workbook);
     }
 }

@@ -2,7 +2,7 @@
 
 账户、影片、票务交易、AI 客服分别部署，Gateway 统一对外。技术栈为 Java 21、Spring Boot 3.5.6、Spring Cloud / Alibaba 2025.0、Nacos 3.0.3、OpenFeign、Sentinel、MySQL 8 和 Redis 7。
 
-当前云端目标是在**单机部署面向 5 万并发接入的集群拓扑**，实际采用缩小规模压测；共享配额、有限连接池和业务准入保护已实现，多副本及数据集群仍需按方案落地验收。架构、副本、故障边界和服务器选型见 [单机五万并发目标方案](docs/single-host-50k-architecture.md)。既有“10 万突发”记录不代表已经验证的系统容量。
+当前目标是**本地单实例微服务技术栈学习**，取消并发容量、集群和应用上云计划。应用与新增中间件各一个本地实例，千问 API 与阿里云 OSS 继续使用，上传文件仍写入现有 OSS Bucket；计划以 RocketMQ、Seata、Elasticsearch、XXL-JOB、Redisson、SkyWalking 和监控等能力扩展业务。重新复核后的模块结构、技术清单、启动组和实施顺序见 [当前本地单实例方案](docs/local-singleton-stack.md)，[官方核验记录](docs/research-local-stack-2026-10-22.md)说明维护状态和兼容性。新增能力尚未全部实装，旧容量、RabbitMQ与集群选型为历史设计。
 
 ## 模块
 
@@ -13,11 +13,17 @@
 | cinema-catalog | 8082 | 影片资料、同步、想看 |
 | cinema-trade | 8083 | 影厅、排片、票、订单、模拟支付退款、评价、营收 |
 | cinema-ai | 8084 | 对话、确认服务单、业务编排 |
-| cinema-api | — | 共享数据契约和纯计算规则 |
-| cinema-common | — | 安全、内部调用、连接池、公共配置 |
+| cinema-notify | 8085 | 消费去重、站内信、WebSocket；消息组启用 |
+| cinema-search | 8086 | ES 全文检索、高亮、版本化消费和可恢复重建；mq-search组启用 |
+| cinema-benefit | 8087 | 优惠券、冻结与核销；transactions组启用 |
+| cinema-api | — | 共享数据契约和存量兼容形状 |
+| cinema-framework | — | Core/Web/Security/Data/Redis/Remote/Observe/Messaging/Seata/File Support，按能力引入的库 |
+| cinema-common | — | 迁移期兼容聚合；可执行应用已不再引入 |
 | cinema-verification | — | 回归与一致性测试 |
 
 各业务服务有独立库、独立用户及 Flyway 历史；旧脚本保存在 `database/legacy/`。
+
+阶段 0/1 已完成基础依赖拆分与 OSS 文件业务整理，说明见 [基础模块](cinema-framework/README.md)、[阶段验收](docs/local-foundation-acceptance-2026-10-22.md)。上传 HTTP 契约、Bucket 和图片路径保持兼容，文件整理未增加新应用进程。阶段 2 后另有 Notify 与 RocketMQ 消息组，启动和验收见 [消息主线](docs/local-messaging-acceptance-2026-10-22.md)。阶段 3 的 Search、ES 与前端搜索已接入，中文检索、故障恢复、乱序保护和重建验收见 [搜索主线](docs/local-search-acceptance-2026-10-22.md)。
 
 ## 本地容器运行
 
@@ -25,7 +31,8 @@
 
 ```powershell
 ./tools/init-local-env.ps1
-docker compose up -d --build
+./tools/local-stack.ps1 -Action Build
+./tools/local-stack.ps1 -Action Up
 # 仅新建空库时初始化首个管理员；已有管理员不会被覆盖。
 docker compose run --rm admin-init
 ```
@@ -38,7 +45,11 @@ Nacos 控制台为 `http://localhost:18848`，用户名 `nacos`，密码在 `.en
 
 AI 客服本地入口为 `http://localhost:8088/ai`。多轮工具线索持久化、服务单完成事件、停止后续问和真实浏览器验收见 [2026-10-22 本地客服联调](docs/ai-customer-service.md)。`python tools/ai_local_acceptance.py` 使用独立测试用户和临时场次，覆盖六类确认式服务单并清理测试数据；报告和截图在 `target/ai-local-acceptance/`。
 
-上传使用 `.env` 中的 `ALIYUN_OSS_AK`、`ALIYUN_OSS_SK`、`ALIYUN_OSS_ENDPOINT`、`ALIYUN_OSS_BUCKET`。修改这些值后运行 `docker compose up -d --no-build identity catalog`，让容器读取新环境变量；`docker compose restart` 不会更新容器配置。上传入口有独立超时和并发限制，普通登录的超时保持不变。
+上传使用 `.env` 中的 `ALIYUN_OSS_AK`、`ALIYUN_OSS_SK`、`ALIYUN_OSS_ENDPOINT`、`ALIYUN_OSS_BUCKET`。修改这些值后运行 `docker compose up -d --no-build identity catalog`，让容器读取新环境变量；`docker compose restart` 不会更新容器配置。上传入口有独立超时和并发限制，普通登录的超时保持不变。统一图片业务在 `cinema-framework/cinema-file-support`，仅 Identity/Catalog 引入 OSS SDK。真实上传验收：JDK 21 下先 `mvn verify`，再 `python tools/file_local_acceptance.py`；脚本清理临时 OSS 对象和用户。
+
+营收页支持 MapStruct / Fesod 六表 Excel 下载，实际金额、权限、浏览器和原CSV回归见 [导出验收](docs/local-export-acceptance-2026-10-23.md)。
+
+AI历史清理已接入同一个XXL平台，逐会话事务、生成租约、模式回退和真实聊天回归见 [AI清理验收](docs/local-ai-retention-acceptance-2026-10-23.md)。内部订单写入时限和故障后原单恢复见 [确认链路](docs/local-ai-confirmation-deadlines-2026-10-23.md)。
 
 ## 本地源码运行
 
@@ -61,13 +72,14 @@ Feign 可通过 `CINEMA_IDENTITY_URL`、`CINEMA_CATALOG_URL`、`CINEMA_TRADE_URL
 
 浏览器来源默认支持 `localhost`／`127.0.0.1` 的 Vite 5173 和容器 8088 入口。Compose 修改 `WEB_PORT` 时会同步调整默认允许来源。需要其他前端来源时，在 `.env` 设置 `CORS_ALLOWED_ORIGINS`，使用逗号分隔完整来源（协议、域名和端口），再重新创建网关及四个业务服务；仅重启进程不会更新容器环境变量。生产示例使用明确域名白名单，网关与后端使用相同配置。
 
-## 生产及数据迁移
+## 历史部署模板及数据迁移
 
-`deploy/kubernetes/` 提供多副本、滚动更新、探针、PDB、分散调度、HPA 和私网策略。替换镜像、基础设施地址，按 `secret.example.yaml` 为共享密钥和各服务数据库口令分别提供 Secret，再用 Kustomize 部署。示例不创建生产数据库、Redis 或 Nacos 集群。
+`deploy/kubernetes/` 是此前的多副本学习模板，保留参考；当前本地方案不启用 Kubernetes、HPA、集群基础设施或云端部署。现有 `compose.yml` 继续是单实例功能联调入口，后续本地扩展配置按功能组引入。
 
 原库需备份并升级到 V24，在维护窗口迁入四个初始化后的空库。`tools/migrate_legacy.py` 默认只读清点，显式追加 `--execute` 才复制；保留 ID、初始化快照、核对行数，拒绝覆盖非空目标。不要把新服务直接指向旧单体库。
 
 - [架构、事务边界、突发保护、高可用、压测及迁移](docs/microservices.md)
+- [当前本地单实例结构与技术栈](docs/local-singleton-stack.md)
 - [验证记录](docs/microservices-validation.md)
 - [293 部电影迁移结果与前后端联调、浏览器复验](docs/movie-migration-integration.md)
 - [业务与接口约定](docs/business-guide.md)
@@ -101,3 +113,17 @@ Feign 可通过 `CINEMA_IDENTITY_URL`、`CINEMA_CATALOG_URL`、`CINEMA_TRADE_URL
 ### 评价业务覆盖
 
 - 新增交易服务内部评价查询接口与 AI `movieReviews`/`myReviews` 工具：影片口碑按片名解析并校验 movieId，返回平均分、分布和脱敏评价；本人评价返回可编辑状态与 `/me/reviews` 入口。前端链接白名单同步允许 `/me/reviews`。
+
+阶段 4 的优惠券与 Seata AT 已验收，券包 `/me/coupons`、后台 `/manage/benefits`、选座抵扣与 AI 确认单均已联调。使用 `./tools/local-stack.ps1 -Action Up -Group transactions` 启动本地事务组，恢复与故障实验见 [事务主线](docs/local-transactions-acceptance-2026-10-22.md)。
+
+阶段 5 已完成 XXL-JOB / Redisson 的订单补偿链，`./tools/local-stack.ps1 -Action Up -Group jobs` 启动十五角色本地组。管理端仅本机 `http://127.0.0.1:11880/xxl-job-admin`，初始密码位于 `.env` 的 `XXL_JOB_ADMIN_PASSWORD`。十组故障 / 浏览器证据见 [调度验收](docs/local-jobs-acceptance-2026-10-22.md)。
+
+Sentinel / Nacos 持久规则已通过九组真实实验，`./tools/local-stack.ps1 -Action Up -Group governance` 启动十六角色本地组，规则管理页 `/manage/governance`，Dashboard 在本机 `http://127.0.0.1:18880`。恢复边界和日志处理见 [治理验收](docs/local-governance-acceptance-2026-10-23.md)。管理员四类角色与即时权限复核已通过十一组真实验收，见 [权限验收](docs/local-rbac-acceptance-2026-10-23.md)。Knife4j 七域聚合、真实 JWT 调试及默认关闭已验收，使用 `-EnableDocs` 开启所选组文档，见 [接口文档验收](docs/local-api-docs-acceptance-2026-10-23.md)。阶段 5 其余子项继续推进。
+
+- [Catalog / Search 领域任务验收（2026-10-23）](docs/local-domain-jobs-acceptance-2026-10-23.md)
+
+- [本地 Prometheus / Grafana 指标验收](docs/local-metrics-acceptance-2026-10-23.md)
+
+- [本地 SkyWalking HTTP / Feign / JDBC 追踪验收](docs/local-tracing-acceptance-2026-10-24.md)：`./tools/local-stack.ps1 -Action Up -Group tracing` 启动十二角色实验组；私有 UI、URL 隐私、真实认证及故障恢复已验收。
+
+- [本地集中日志与当前步骤收尾验收](docs/local-logs-acceptance-2026-10-25.md)：Loki / Alloy、真实 Grafana 关联、事务 12 组、AI 11 组及基础浏览器 8 组通过；当前项目容器与 Docker 已关闭，其余扩展暂停。

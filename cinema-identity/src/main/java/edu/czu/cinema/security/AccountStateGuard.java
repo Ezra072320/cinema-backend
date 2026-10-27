@@ -26,6 +26,18 @@ public class AccountStateGuard implements AccountStateVerifier {
 
     private final UserMapper userMapper;
     private final AdminMapper adminMapper;
+    private final edu.czu.cinema.domain.admin.access.AdminRbacService rbac;
+
+    @Override
+    public edu.czu.cinema.domain.admin.AccountAccess verify(String role, Long id, String pv) {
+        boolean active = isActive(role, id, pv);
+        try {
+            return new edu.czu.cinema.domain.admin.AccountAccess(active,
+                    active && "ADMIN".equalsIgnoreCase(role) ? rbac.permissions(id) : java.util.Set.of());
+        } catch (RuntimeException e) {
+            throw new edu.czu.cinema.common.exception.ServiceUnavailableException();
+        }
+    }
 
     /**
      * @param role USER / ADMIN

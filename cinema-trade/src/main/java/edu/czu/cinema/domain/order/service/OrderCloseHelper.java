@@ -31,6 +31,8 @@ public class OrderCloseHelper {
     private final OrderMapper orderMapper;
     private final TicketService ticketService;
     private final OrderAuditService orderAuditService;
+    @org.springframework.beans.factory.annotation.Autowired(required=false)
+    private edu.czu.cinema.transactions.CouponOrderSupport couponSupport;
 
     /**
      * 条件关单: 仅当订单仍是待支付(1)时置 4 并释放票.
@@ -40,6 +42,7 @@ public class OrderCloseHelper {
      * @param operatorId 操作者 id, 系统动作传 null
      * @return true=本次确实关闭并释放了票; false=被并发抢先(已不在 status=1)
      */
+    @org.apache.seata.spring.annotation.GlobalTransactional(propagation=org.apache.seata.tm.api.transaction.Propagation.NOT_SUPPORTED)
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
     public boolean closePending(Long orderId, String reason, String operatorType, Long operatorId) {
         return doClose(orderId, reason, operatorType, operatorId);
@@ -53,6 +56,7 @@ public class OrderCloseHelper {
     }
 
     private boolean doClose(Long orderId, String reason, String operatorType, Long operatorId) {
+        if(couponSupport!=null)couponSupport.requireFinal(orderId);
         Order before = orderMapper.selectById(orderId);
         // 条件 UPDATE: 仅当 status=1 时关闭. 并发下 pay/cancel 先得手就 0 行, 静默返回 false.
         int rows =

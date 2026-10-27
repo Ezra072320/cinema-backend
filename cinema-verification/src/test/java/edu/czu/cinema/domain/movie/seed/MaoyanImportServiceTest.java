@@ -31,6 +31,7 @@ class MaoyanImportServiceTest {
     @Mock MovieAltTitleMapper aliases;
     @Mock TypeMapper types;
     @Mock MovieTypeBindMapper bindings;
+    @Mock edu.czu.cinema.domain.movie.search.MovieProjectionWriter projection;
     @InjectMocks MaoyanImportServiceImpl importer;
     private final ObjectMapper json = new ObjectMapper();
 

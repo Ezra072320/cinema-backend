@@ -1,5 +1,5 @@
 param(
-    [Parameter(Mandatory)][ValidateSet('identity','catalog','trade','ai','gateway')][string]$Service
+    [Parameter(Mandatory)][ValidateSet('identity','catalog','trade','ai','gateway','notify','search','benefit')][string]$Service
 )
 $ErrorActionPreference = 'Stop'
 $Service = $Service.ToLowerInvariant()
@@ -11,7 +11,8 @@ foreach ($taskLine in Get-Content -LiteralPath $taskEnv) {
         [Environment]::SetEnvironmentVariable($Matches[1], $Matches[2], 'Process')
     }
 }
-$taskPorts = @{identity=8081;catalog=8082;trade=8083;ai=8084;gateway=8080}
+$taskPorts = @{identity=8081;catalog=8082;trade=8083;ai=8084;gateway=8080;notify=8085;search=8086;benefit=8087}
+$env:ROCKETMQ_ENDPOINTS = '127.0.0.1:18081'
 $env:SERVER_PORT = [string]$taskPorts[$Service]
 $env:NACOS_ADDR = '127.0.0.1:8848'
 $env:REDIS_HOST = '127.0.0.1'
